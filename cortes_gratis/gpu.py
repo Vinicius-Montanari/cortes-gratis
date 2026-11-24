@@ -46,8 +46,9 @@ def bibliotecas_ok() -> bool:
     if os.name != "nt":
         return True  # no Linux o pip resolve; no Mac não há CUDA
     preparar_dlls()
-    import shutil
-    return shutil.which("cublas64_12.dll") is not None
+    # (shutil.which não serve: no Windows ele só procura executáveis)
+    return any((Path(p) / "cublas64_12.dll").is_file()
+               for p in os.environ.get("PATH", "").split(os.pathsep) if p)
 
 
 def tem_cuda() -> bool:
