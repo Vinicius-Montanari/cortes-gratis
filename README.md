@@ -163,6 +163,15 @@ As chaves ficam salvas só no seu PC, em `dados\config.json`. Esse arquivo não 
 
 Se você não instalar, ele se instala sozinho na primeira vez que precisar.
 
+**O botão deu erro?** Tem mais dois jeitos:
+
+1. **Pela janela de comando**, que mostra cada passo e qualquer erro: menu Iniciar → **Instalar IA local**. Ou, na pasta do programa:
+   ```powershell
+   & ".\Cortes Gratis.exe" --instalar-ia-local
+   ```
+   (pelo código: `.venv\Scripts\python -m cortes_gratis --instalar-ia-local`). Dá pra escolher o modelo: `--instalar-ia-local gemma3:4b`.
+2. **Usando o Ollama oficial**: instale por [ollama.com/download](https://ollama.com/download), rode `ollama pull qwen2.5:7b` e, em **Configurações → IA local → Outras formas de instalar**, troque o endereço pra `http://127.0.0.1:11434/v1`. Atenção: aí os modelos ficam onde o Ollama oficial guarda (no C:), a não ser que você crie a variável de ambiente `OLLAMA_MODELS` apontando pra outro disco.
+
 | Modelo | Tamanho | Pra quem |
 |---|---|---|
 | `qwen2.5:7b` (padrão) | 4,7 GB | Placa de 8 GB+. Bom em português e em responder no formato certo |
@@ -240,6 +249,7 @@ A interface roda só em `127.0.0.1` (o próprio PC) e recusa pedidos vindos de o
 
 | Problema | O que fazer |
 |---|---|
+| "O programa parou de responder" (ou "Failed to fetch") | A janela preta fechou. Se fechou sozinha ao instalar a IA local, provavelmente foi o antivírus: veja se ele pôs `Cortes Gratis.exe` ou `ollama.exe` em quarentena e libere. Pra ver o erro exato, use o atalho **Instalar IA local** |
 | A janela do programa abre e fecha na hora | Abra pelo atalho de novo; se continuar, a janela agora espera você ler o erro. Mande o print numa issue |
 | Primeira vez parada em "Suporte à placa de vídeo" | É o download de ~2 GB das bibliotecas da NVIDIA, uma vez só. Se cair a internet, ele tenta de novo no próximo corte e, enquanto isso, transcreve pelo processador |
 | `instalar.bat` diz que não achou Python 64 bits | Rode `winget install Python.Python.3.12` e tente de novo. Python 3.14 ainda não serve (falta a biblioteca de transcrição) |

@@ -8,7 +8,19 @@ async function api(caminho, metodo = "GET", corpo) {
     opc.headers["Content-Type"] = "application/json";
     opc.body = JSON.stringify(corpo || {});
   }
-  const r = await fetch(caminho, opc);
+  let r;
+  try {
+    r = await fetch(caminho, opc);
+  } catch {
+    // "Failed to fetch": o navegador não achou o programa. Quase sempre a
+    // janela preta fechou (ou o antivírus derrubou o programa).
+    throw new Error(
+      "O programa parou de responder.\n\n" +
+      "A janela preta do Cortes Grátis ainda está aberta? Se ela fechou sozinha, " +
+      "o antivírus pode ter bloqueado o programa. Abra de novo pelo atalho.\n\n" +
+      "Pra instalar a IA local vendo cada passo e qualquer erro, use o atalho " +
+      "\"Instalar IA local\" no menu Iniciar.");
+  }
   if (!r.ok) {
     let msg = r.statusText;
     try { msg = (await r.json()).detail || msg; } catch {}
@@ -330,6 +342,7 @@ let timerOllama = null;
 function atualizarOllama() {
   const o = estado.ollama;
   $("#ollama-pasta").textContent = o.pasta;
+  if (document.activeElement !== $("#ollama-url")) $("#ollama-url").value = estado.config.ia.ollama.url;
   const sel = $("#ollama-modelo");
   if (!sel.options.length) {
     for (const m of o.sugeridos) {
@@ -358,6 +371,17 @@ function atualizarOllama() {
     timerOllama = setTimeout(carregarEstado, 1500);
   }
 }
+
+$("#ollama-url-salvar").onclick = async () => {
+  const url = $("#ollama-url").value.trim() || "http://127.0.0.1:11435/v1";
+  try {
+    await api("/api/config", "POST", { ia: { ollama: { url } } });
+    await carregarEstado();
+    $("#ollama-msg").textContent = estado.ollama.rodando
+      ? `Endereço salvo. Encontrei a IA local em ${url} ✓`
+      : `Endereço salvo, mas nada respondeu em ${url}. O Ollama está aberto?`;
+  } catch (e) { alert(e.message); }
+};
 
 $("#ollama-instalar").onclick = async () => {
   try {

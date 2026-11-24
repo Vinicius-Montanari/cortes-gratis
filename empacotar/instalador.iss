@@ -41,6 +41,7 @@ Source: "..\build\pyinstaller\dist\Cortes Gratis\*"; DestDir: "{app}"; Flags: ig
 [Icons]
 Name: "{group}\Cortes Grátis"; Filename: "{app}\Cortes Gratis.exe"
 Name: "{group}\Pasta dos clipes"; Filename: "{app}\dados\projetos"
+Name: "{group}\Instalar IA local"; Filename: "{app}\Cortes Gratis.exe"; Parameters: "--instalar-ia-local"; Comment: "Instala a IA local mostrando cada passo"
 Name: "{group}\Desinstalar o Cortes Grátis"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\Cortes Grátis"; Filename: "{app}\Cortes Gratis.exe"; Tasks: atalho
 

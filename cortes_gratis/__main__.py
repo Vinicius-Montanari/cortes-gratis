@@ -46,6 +46,42 @@ def _terminal(args) -> None:
     print(f"\nClipes em: {p.pasta / 'clipes'}")
 
 
+def _instalar_ia_local(modelo: str, prog) -> None:
+    """Mesma coisa do botão "Instalar e ligar", mas na janela de comando:
+    se algo der errado (antivírus, internet, disco cheio), o erro aparece aqui."""
+    from . import config, ollama_local
+
+    cfg = config.carregar()
+    modelo = (modelo or cfg["ia"]["ollama"]["modelo"]).strip()
+    url = cfg["ia"]["ollama"]["url"]
+    print(f"\n  Instalando a IA local em {config.PASTA_OLLAMA}")
+    print(f"  Modelo: {modelo}\n")
+    ok = False
+    try:
+        ollama_local.instalar(prog)
+        print("\n  Ligando...")
+        ollama_local.iniciar(url)
+        ollama_local.baixar_modelo(modelo, prog, url)
+        cfg["ia"]["ollama"]["modelo"] = modelo
+        config.salvar(cfg)
+        print(f"\n\n  Pronto! IA local instalada com o modelo {modelo}.")
+        print("  Ela liga sozinha quando o programa precisar.")
+        ok = True
+    except Exception as e:  # noqa: BLE001
+        print(f"\n\n  ERRO: {e}")
+        print("\n  Se a janela do Cortes Grátis fechava sozinha ao instalar, confira se o")
+        print("  antivírus não colocou o Cortes Gratis.exe ou o ollama.exe em quarentena.")
+        log = config.PASTA_OLLAMA / "ollama.log"
+        if log.exists():
+            print(f"  Registro do Ollama: {log}")
+    finally:
+        ollama_local.parar()
+    if getattr(sys, "frozen", False):
+        input("\n  Aperte Enter pra fechar...")
+    if not ok:
+        sys.exit(1)
+
+
 def main() -> None:
     for s in (sys.stdout, sys.stderr):  # acentos no terminal do Windows
         try:
@@ -62,16 +98,23 @@ def main() -> None:
     ap.add_argument("--porta", type=int, default=8765)
     ap.add_argument("--sem-navegador", action="store_true")
     ap.add_argument("--instalar", action="store_true", help="baixa o ffmpeg e sai")
+    ap.add_argument("--instalar-ia-local", nargs="?", const="", metavar="MODELO",
+                    help="instala a IA local (Ollama) e baixa o modelo, mostrando tudo aqui")
     args = ap.parse_args()
 
     from . import config, ferramentas
     config.preparar_pastas()
 
+    def prog(frac: float, msg: str) -> None:
+        print(f"\r{msg:<78}", end="", flush=True)
+
     if args.instalar:
-        def prog(frac: float, msg: str) -> None:
-            print(f"\r{msg:<70}", end="", flush=True)
         caminho = ferramentas.instalar_ffmpeg(prog)
         print(f"\nffmpeg pronto: {caminho}")
+        return
+
+    if args.instalar_ia_local is not None:
+        _instalar_ia_local(args.instalar_ia_local, prog)
         return
 
     if args.entrada:

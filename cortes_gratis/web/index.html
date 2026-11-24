@@ -110,6 +110,25 @@
       </div>
       <div class="barra escondido" id="ollama-barra-box"><div id="ollama-barra"></div></div>
       <p id="ollama-msg" class="msg"></p>
+      <details>
+        <summary>O botão deu erro? Outras formas de instalar</summary>
+        <div class="dica">
+          <p><b>1. Pela janela de comando</b> (mostra cada passo e qualquer erro):
+            menu Iniciar → <b>Instalar IA local</b>. Ou, na pasta do programa:
+            <code>"Cortes Gratis.exe" --instalar-ia-local</code></p>
+          <p><b>2. Usando o Ollama oficial:</b> instale pelo site
+            <a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com/download</a>,
+            rode <code>ollama pull qwen2.5:7b</code> e troque o endereço abaixo para
+            <code>http://127.0.0.1:11434/v1</code>. Nesse caso os modelos ficam onde o Ollama oficial guarda
+            (no C:, a não ser que você defina a variável <code>OLLAMA_MODELS</code>).</p>
+        </div>
+        <div class="linha">
+          <label>Endereço da IA local
+            <input id="ollama-url" placeholder="http://127.0.0.1:11435/v1">
+          </label>
+          <button id="ollama-url-salvar">Salvar endereço</button>
+        </div>
+      </details>
     </div>
 
     <div class="cartao">

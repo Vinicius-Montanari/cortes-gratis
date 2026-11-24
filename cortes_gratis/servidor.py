@@ -7,6 +7,7 @@ import platform
 import queue
 import subprocess
 import threading
+import traceback
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -143,13 +144,18 @@ async def ollama_instalar(request: Request):
     def tarefa() -> None:
         _tarefa_ollama.update(rodando=True, erro="", mensagem="Começando...", progresso=0.0)
         try:
-            ollama_local.instalar(prog)
-            prog(0, "Ligando a IA local...")
-            ollama_local.iniciar(url)
+            # Se já tem um Ollama respondendo no endereço (ex.: o oficial),
+            # não instala outro: só baixa o modelo nele.
+            if not ollama_local.rodando(url):
+                ollama_local.instalar(prog)
+                prog(0, "Ligando a IA local...")
+                ollama_local.iniciar(url)
             ollama_local.baixar_modelo(modelo, prog, url)
             prog(1, f"Pronto: {modelo} instalado e ligado.")
         except Exception as e:  # noqa: BLE001
             _tarefa_ollama["erro"] = str(e)
+            print("\n[IA local] Erro ao instalar:", flush=True)
+            traceback.print_exc()
         finally:
             _tarefa_ollama["rodando"] = False
 
