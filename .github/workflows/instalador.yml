@@ -1,0 +1,55 @@
+# Gera o instalador do Windows.
+# - Em todo push de tag "v*" (ex.: v0.2.0): compila e publica na página de Releases.
+# - Manual (aba Actions -> Instalador -> Run workflow): compila e deixa o .exe
+#   pra baixar em "Artifacts", sem criar release.
+name: Instalador
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        id: py
+        with:
+          python-version: "3.12"
+
+      - name: Testes
+        shell: pwsh
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pytest -q
+
+      - name: Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Compilar
+        shell: pwsh
+        env:
+          PYTHON: ${{ steps.py.outputs.python-path }}
+        run: ./empacotar/construir.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: instalador
+          path: dist/*.exe
+
+      - name: Publicar na release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe
+          generate_release_notes: true

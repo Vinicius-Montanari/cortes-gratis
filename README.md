@@ -82,16 +82,36 @@ Três layouts:
 | | Mínimo | Recomendado |
 |---|---|---|
 | Sistema | Windows 10/11 64 bits | |
-| Python | 3.10 a 3.13, **64 bits** | 3.12 |
+| Python | nenhum, se usar o instalador. Pelo código: 3.10 a 3.13, **64 bits** | 3.12 |
 | Placa de vídeo | nenhuma (vai pelo processador, bem mais lento) | NVIDIA com 6 GB+ (ex.: RTX 2060 12 GB, 3060, 3080) |
-| Disco | ~3 GB (programa + ffmpeg + modelo de transcrição) | +6 GB se usar a IA local |
+| Disco | ~2,5 GB sem placa de vídeo | ~4,5 GB com placa NVIDIA, +6,5 GB se usar a IA local |
 | Internet | pra baixar a live e falar com a IA | |
 
-**Tudo fica dentro da pasta do programa.** Se você colocar em `F:\cortes-gratis`, os modelos, o ffmpeg, a IA local e os clipes vão todos pra `F:\cortes-gratis\dados`. Nada enche o seu C:. (Só o Python em si, se você ainda não tiver, instala no C:.)
+**Tudo fica dentro da pasta do programa.** Se você instalar em `F:\Cortes Gratis`, os modelos, o ffmpeg, a IA local e os clipes vão todos pra `F:\Cortes Gratis\dados`. Nada enche o seu C:.
 
 ---
 
 ## 4. Instalar no Windows
+
+### Jeito fácil: instalador (não precisa de Python)
+
+1. Vá em **[Releases](https://github.com/Vinicius-Montanari/cortes-gratis/releases/latest)** e baixe o `CortesGratis-<versão>-instalador.exe` (~75 MB).
+2. Abra. Se aparecer **"O Windows protegeu o computador"**, clique em **Mais informações → Executar assim mesmo**. Esse aviso aparece em todo programa sem certificado digital pago; o instalador é gerado automaticamente pelo GitHub a partir deste código (veja a aba Actions).
+3. **Escolha a pasta.** Não precisa de admin. Pode ser outro disco, ex.: `F:\Cortes Gratis`. Tudo que o programa baixar depois fica dentro dela.
+4. Abra pelo atalho **Cortes Grátis**. A janela preta é o programa rodando; o navegador abre sozinho. Fechou a janela, desligou.
+
+Na primeira vez que você cortar algo, ele baixa sozinho o que falta:
+
+| O quê | Tamanho | Quando |
+|---|---|---|
+| ffmpeg | ~0,5 GB | sempre |
+| Modelo de transcrição | ~1,6 GB (`large-v3-turbo`) ou ~0,5 GB (`small`, sem placa) | sempre |
+| Bibliotecas da NVIDIA (CUDA 12 + cuDNN 9, do PyPI oficial) | ~2 GB | só se tiver placa NVIDIA |
+| IA local (Ollama + modelo) | ~6,5 GB | só se usar a IA local |
+
+**Desinstalar:** pelo **Configurações do Windows → Aplicativos**, ou **Iniciar → Desinstalar o Cortes Grátis**. Ele pergunta se apaga também os clipes e os modelos baixados.
+
+### Pelo código (pra quem já tem Python ou quer mexer)
 
 1. **Python.** Se ainda não tiver, abra o PowerShell e rode:
    ```powershell
@@ -220,6 +240,8 @@ A interface roda só em `127.0.0.1` (o próprio PC) e recusa pedidos vindos de o
 
 | Problema | O que fazer |
 |---|---|
+| A janela do programa abre e fecha na hora | Abra pelo atalho de novo; se continuar, a janela agora espera você ler o erro. Mande o print numa issue |
+| Primeira vez parada em "Suporte à placa de vídeo" | É o download de ~2 GB das bibliotecas da NVIDIA, uma vez só. Se cair a internet, ele tenta de novo no próximo corte e, enquanto isso, transcreve pelo processador |
 | `instalar.bat` diz que não achou Python 64 bits | Rode `winget install Python.Python.3.12` e tente de novo. Python 3.14 ainda não serve (falta a biblioteca de transcrição) |
 | A transcrição está no processador mesmo com placa NVIDIA | Atualize o driver da NVIDIA (precisa suportar CUDA 12). Rode o `instalar.bat` de novo. O chip no topo da tela mostra se a placa foi encontrada |
 | "Nenhuma IA respondeu" | Confira as chaves em Configurações → Testar. Se a cota do dia acabou, instale a IA local |
@@ -264,9 +286,12 @@ cortes_gratis/
 ├── ollama_local.py   instala, liga e desliga a IA local
 ├── ferramentas.py    acha/baixa o ffmpeg, detecta NVENC
 ├── gpu.py            prepara as bibliotecas CUDA no Windows
+├── cuda.py           baixa as DLLs da NVIDIA do PyPI (versão instalada, sem pip)
 ├── config.py         caminhos (tudo em dados/) e configuração padrão
 ├── servidor.py       API local (FastAPI) da interface
 └── web/              a interface (HTML + JS puro, sem build)
+empacotar/            receita do .exe (PyInstaller) e do instalador (Inno Setup)
+tests/                testes (pytest)
 ```
 
 Rodar os testes:
@@ -275,6 +300,28 @@ Rodar os testes:
 .venv\Scripts\python -m pip install -r requirements-dev.txt
 .venv\Scripts\python -m pytest
 ```
+
+### Gerar o instalador
+
+Precisa de Python 3.12 e [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`winget install JRSoftware.InnoSetup`):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File empacotar\construir.ps1
+```
+
+Sai em `dist\CortesGratis-<versão>-instalador.exe`. O PyInstaller junta o Python e as bibliotecas (`empacotar\cortes-gratis.spec`), e o Inno Setup transforma isso num instalador (`empacotar\instalador.iss`). As bibliotecas da NVIDIA ficam de fora de propósito: o programa baixa só se precisar (`cortes_gratis\cuda.py`).
+
+**Publicar uma versão:** mude `__version__` em `cortes_gratis\__init__.py`, faça o commit e crie a tag com o mesmo número:
+
+```powershell
+git tag v0.2.0
+```
+
+```powershell
+git push origin v0.2.0
+```
+
+O GitHub Actions (`.github\workflows\instalador.yml`) roda os testes, compila e põe o instalador na página de Releases sozinho.
 
 Ideias que cabem bem: ler o chat da live (picos de mensagens são ótimos sinais), mandar os quadros pro Gemini conferir a imagem, rastrear o rosto pro layout `centro`.
 

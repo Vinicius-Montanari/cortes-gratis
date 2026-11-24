@@ -8,12 +8,17 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
 from copy import deepcopy
 from pathlib import Path
 
-# Pasta raiz do programa (onde está o README).
-RAIZ = Path(__file__).resolve().parent.parent
+# Pasta raiz do programa. Rodando pelo código: onde está o README.
+# Rodando pelo .exe instalado: a pasta do Cortes Gratis.exe.
+if getattr(sys, "frozen", False):
+    RAIZ = Path(sys.executable).resolve().parent
+else:
+    RAIZ = Path(__file__).resolve().parent.parent
 
 # Dá pra mudar a pasta de dados com a variável CORTES_DADOS, se quiser
 # deixar o programa num disco e os arquivos pesados em outro.

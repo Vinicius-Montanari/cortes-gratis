@@ -84,7 +84,8 @@ def main() -> None:
     print(f"\n  Cortes Grátis rodando em {url}\n  Feche esta janela pra desligar.\n")
     if not args.sem_navegador:
         threading.Timer(1.5, lambda: webbrowser.open(url)).start()
-    uvicorn.run("cortes_gratis.servidor:app", host="127.0.0.1", port=porta, log_level="warning")
+    from .servidor import app  # objeto direto: funciona também dentro do .exe
+    uvicorn.run(app, host="127.0.0.1", port=porta, log_level="warning")
 
 
 if __name__ == "__main__":

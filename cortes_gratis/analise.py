@@ -157,6 +157,13 @@ def transcrever(audio: np.ndarray, duracao: float, cfg_whisper: dict, idioma: st
     disp = cfg_whisper.get("dispositivo", "auto")
     tentativas = []
     if disp in ("auto", "cuda") and gpu.tem_cuda():
+        if not gpu.bibliotecas_ok():
+            from . import cuda
+            try:
+                cuda.baixar(progresso)
+            except Exception as e:  # noqa: BLE001 - sem internet etc.: segue no processador
+                progresso(0.0, f"Não deu pra baixar o suporte à placa ({e}); "
+                               "tentando de outro jeito...")
         tentativas.append(("cuda", "float16"))
     if disp in ("auto", "cpu") or not tentativas:
         tentativas.append(("cpu", "int8"))

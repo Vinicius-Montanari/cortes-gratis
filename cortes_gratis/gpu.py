@@ -20,16 +20,34 @@ def preparar_dlls() -> None:
     _pronto = True
     if os.name != "nt":
         return
-    for base in map(Path, sys.path):
-        nvidia = base / "nvidia"
-        if not nvidia.is_dir():
-            continue
-        for bin_ in nvidia.glob("*/bin"):
-            try:
-                os.add_dll_directory(str(bin_))
-            except OSError:
-                pass
-            os.environ["PATH"] = str(bin_) + os.pathsep + os.environ.get("PATH", "")
+    pastas = [bin_ for base in map(Path, sys.path) if (base / "nvidia").is_dir()
+              for bin_ in (base / "nvidia").glob("*/bin")]
+    from . import cuda
+    # Pasta das DLLs que o programa baixa sozinho (versão instalada, sem pip).
+    # Registra já, mesmo vazia: o que for baixado depois passa a ser achado.
+    cuda.BIN.mkdir(parents=True, exist_ok=True)
+    pastas.append(cuda.BIN)
+    for bin_ in pastas:
+        _adicionar(bin_)
+
+
+def _adicionar(pasta: Path) -> None:
+    if not pasta.is_dir():
+        return
+    try:
+        os.add_dll_directory(str(pasta))
+    except OSError:
+        pass
+    os.environ["PATH"] = str(pasta) + os.pathsep + os.environ.get("PATH", "")
+
+
+def bibliotecas_ok() -> bool:
+    """As DLLs do CUDA estão em algum lugar que o programa enxerga?"""
+    if os.name != "nt":
+        return True  # no Linux o pip resolve; no Mac não há CUDA
+    preparar_dlls()
+    import shutil
+    return shutil.which("cublas64_12.dll") is not None
 
 
 def tem_cuda() -> bool:
