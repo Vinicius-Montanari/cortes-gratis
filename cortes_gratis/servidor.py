@@ -151,6 +151,8 @@ async def ollama_instalar(request: Request):
                 prog(0, "Ligando a IA local...")
                 ollama_local.iniciar(url)
             ollama_local.baixar_modelo(modelo, prog, url)
+            if cfg["visao"].get("ativo"):
+                ollama_local.baixar_modelo(cfg["visao"]["modelo_local"], prog, url)
             prog(1, f"Pronto: {modelo} instalado e ligado.")
         except Exception as e:  # noqa: BLE001
             _tarefa_ollama["erro"] = str(e)

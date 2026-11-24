@@ -250,8 +250,16 @@ function preencherConfig() {
   $("#maiuscula").checked = c.corte.legenda_maiuscula;
   $("#mostrar-gancho").checked = c.corte.mostrar_gancho;
   $("#mostrar-credito").checked = c.corte.mostrar_credito;
+  $("#visao-ativo").checked = c.visao.ativo;
+  const selV = $("#visao-modelo");
+  if (![...selV.options].some((o) => o.value === c.visao.modelo_local)) selV.add(new Option(c.visao.modelo_local, c.visao.modelo_local));
+  selV.value = c.visao.modelo_local;
+  $("#visao-peso").value = c.visao.peso;
+  $("#visao-peso-valor").textContent = Math.round(c.visao.peso * 100) + "%";
   desenharIAs(c.ordem_ia.slice());
 }
+
+$("#visao-peso").addEventListener("input", (e) => ($("#visao-peso-valor").textContent = Math.round(e.target.value * 100) + "%"));
 
 let ordemIA = [];
 function desenharIAs(ordem) {
@@ -325,6 +333,11 @@ async function salvarConfig() {
     dur_min: +$("#dur-min").value, dur_max: +$("#dur-max").value,
     legenda_maiuscula: $("#maiuscula").checked, mostrar_gancho: $("#mostrar-gancho").checked,
     mostrar_credito: $("#mostrar-credito").checked,
+  });
+  Object.assign(c.visao, {
+    ativo: $("#visao-ativo").checked,
+    modelo_local: $("#visao-modelo").value,
+    peso: parseFloat($("#visao-peso").value),
   });
   estado.config = await api("/api/config", "POST", c);
   await carregarEstado();

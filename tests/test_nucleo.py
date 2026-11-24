@@ -179,3 +179,22 @@ def test_casar_tolera_id_errado_e_objeto_solto():
     r = avaliar._casar({"avaliacoes": [{"id": 4, "nota": 1}, {"id": 3, "nota": 2}]}, dois)
     assert [a["nota"] for a in r] == [2, 1]
     assert avaliar._casar({"avaliacoes": [{"id": 9, "nota": 1}]}, dois) == [None, None]
+
+
+def test_visao_reprova_menu_e_mistura_nota():
+    from cortes_gratis.ia import visao
+    c = {"id": 1, "nota": 8.0, "motivo": "susto"}
+    visao.combinar(c, {"tipo": "menu_ou_loja", "nota_visual": 7, "o_que_aparece": "loja de armas",
+                       "imagem_combina_com_titulo": True}, 0.4)
+    assert c["nota"] <= 3 and c["nota_texto"] == 8.0
+    assert "Reprovado pela imagem" in c["motivo"] and "loja de armas" in c["motivo"]
+
+    c = {"id": 2, "nota": 8.0, "motivo": "fuga"}
+    visao.combinar(c, {"tipo": "gameplay_acao", "nota_visual": 6,
+                       "imagem_combina_com_titulo": "false"}, 0.4)
+    assert c["nota"] == pytest.approx(0.6 * 8 + 0.4 * 6 - 1)
+
+    c = {"id": 3, "nota": 7.0}
+    visao.combinar(c, {"tipo": "gameplay_acao", "nota_visual": "lixo",
+                       "imagem_combina_com_titulo": True}, 0.5)
+    assert c["nota"] == pytest.approx(6.0)  # nota visual inválida vira 5

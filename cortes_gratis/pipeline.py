@@ -14,11 +14,12 @@ from datetime import datetime
 from pathlib import Path
 
 from . import analise, candidatos, config, corte, ferramentas
-from .ia import avaliar
+from .ia import avaliar, visao
 
 # Peso de cada etapa na barra de progresso geral.
-ETAPAS = [("analise", "Transcrevendo", 0.45), ("candidatos", "Procurando momentos", 0.02),
-          ("ia", "IA filtrando", 0.13), ("corte", "Cortando", 0.40)]
+ETAPAS = [("analise", "Transcrevendo", 0.42), ("candidatos", "Procurando momentos", 0.02),
+          ("ia", "IA filtrando", 0.12), ("visao", "Conferindo a imagem", 0.06),
+          ("corte", "Cortando", 0.38)]
 
 
 class Projeto:
@@ -141,6 +142,15 @@ def rodar(p: Projeto) -> None:
             avaliar.avaliar(cands, frases, energia, fonte, cfg, p.log, p.progresso("ia"))
             p.dados["candidatos"] = cands
             p.log(f"IA usada: {cands[0].get('ia') if cands else '-'}")
+
+        # 3b. Conferência pela imagem (só nos que passaram pela fala)
+        if cfg["visao"].get("ativo"):
+            antes = sum(c.get("nota", 0) >= cc["nota_minima"] for c in cands)
+            visao.conferir(cands, fonte, cfg, p.log, p.progresso("visao"))
+            depois = sum(c.get("nota", 0) >= cc["nota_minima"] for c in cands)
+            if antes != depois:
+                p.log(f"A imagem derrubou {antes - depois} trecho(s) que tinham passado pela fala")
+            p.dados["candidatos"] = cands
         escolhidos = avaliar.escolher(cands, cfg)
         for c in cands:
             c["escolhido"] = c in escolhidos

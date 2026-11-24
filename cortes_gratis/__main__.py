@@ -62,6 +62,9 @@ def _instalar_ia_local(modelo: str, prog) -> None:
         print("\n  Ligando...")
         ollama_local.iniciar(url)
         ollama_local.baixar_modelo(modelo, prog, url)
+        if cfg["visao"].get("ativo"):
+            print(f"\n  Baixando também a IA que confere a imagem ({cfg['visao']['modelo_local']})...")
+            ollama_local.baixar_modelo(cfg["visao"]["modelo_local"], prog, url)
         cfg["ia"]["ollama"]["modelo"] = modelo
         config.salvar(cfg)
         print(f"\n\n  Pronto! IA local instalada com o modelo {modelo}.")

@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import subprocess
 import unicodedata
 from pathlib import Path
 from typing import Callable
@@ -131,14 +132,48 @@ def filtro_video(layout: str) -> str:
 
 def _fontes_ffmpeg_link(link: str) -> list[tuple[str, dict]]:
     """Endereços diretos do vídeo e do áudio (até 1080p) pro ffmpeg ler."""
+    return _fontes_link_cache(link, "bv*[height<=1080]+ba/b[height<=1080]/bv*+ba/b")
+
+
+_cache_link: dict[tuple[str, str], tuple[float, list]] = {}
+
+
+def _fontes_link_cache(link: str, formato: str) -> list[tuple[str, dict]]:
+    """Os endereços diretos expiram (YouTube: algumas horas), então guarda só 20 min."""
+    import time
     import yt_dlp
-    opc = {"quiet": True, "no_warnings": True,
-           "format": "bv*[height<=1080]+ba/b[height<=1080]/bv*+ba/b"}
-    with yt_dlp.YoutubeDL(opc) as y:
+    chave = (link, formato)
+    if chave in _cache_link and time.time() - _cache_link[chave][0] < 1200:
+        return _cache_link[chave][1]
+    with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "format": formato}) as y:
         info = y.extract_info(link, download=False)
     formatos = info.get("requested_formats") or [info]
-    return [(f["url"], f.get("http_headers") or info.get("http_headers") or {})
-            for f in formatos]
+    r = [(f["url"], f.get("http_headers") or info.get("http_headers") or {}) for f in formatos]
+    _cache_link[chave] = (time.time(), r)
+    return r
+
+
+def quadros(fonte: dict, ini: float, fim: float, n: int = 4, largura: int = 512) -> list[bytes]:
+    """Tira `n` quadros espalhados pelo trecho (JPEG), pra IA que enxerga conferir.
+    Por link, lê uma versão pequena (até 480p): é só pra olhar, não pra postar."""
+    ff = ferramentas.caminho_ffmpeg() or "ffmpeg"
+    if fonte.get("tipo") == "arquivo":
+        entrada, cab = fonte["arquivo"], {}
+    else:
+        entrada, cab = _fontes_link_cache(
+            fonte["link"], "bv*[height<=480]/b[height<=480]/worst")[0]
+    saida = []
+    for k in range(n):
+        t = ini + (fim - ini) * (k + 0.5) / n
+        args = [ff, "-loglevel", "error"]
+        if cab:
+            args += ["-headers", "".join(f"{a}: {b}\r\n" for a, b in cab.items())]
+        args += ["-ss", f"{t:.2f}", "-i", entrada, "-frames:v", "1",
+                 "-vf", f"scale={largura}:-2", "-q:v", "4", "-f", "image2", "-c:v", "mjpeg", "-"]
+        r = subprocess.run(args, capture_output=True, creationflags=ferramentas.SEM_JANELA)
+        if r.returncode == 0 and r.stdout:
+            saida.append(r.stdout)
+    return saida
 
 
 def _entradas(fonte: dict, ini: float, dur: float) -> list[str]:

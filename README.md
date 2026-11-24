@@ -66,6 +66,12 @@ Três layouts:
     → descarta o que ficar abaixo da nota mínima (padrão 6)
         │
         ▼
+ ③b CONFERE A IMAGEM  (Gemini → IA local que enxerga)
+    4 quadros de cada trecho aprovado vão pra uma IA de visão:
+    menu, loja, mapa e tela de carregamento são reprovados;
+    nos outros, a nota da imagem entra na nota final
+        │
+        ▼
  ④ CORTE  (no seu PC)
     o ffmpeg lê direto do servidor só os pedaços aprovados (não baixa a live inteira),
     monta em 9:16 com legenda e codifica na placa de vídeo (NVENC)
@@ -181,6 +187,18 @@ Se você não instalar, ele se instala sozinho na primeira vez que precisar.
 
 Dá pra digitar qualquer outro modelo da [biblioteca do Ollama](https://ollama.com/library) no campo **Modelo**.
 
+### IA local que enxerga (conferência da imagem)
+
+A IA de texto só lê a fala, então se engana: num teste com uma VOD de GTA, ela deu nota 8 e chamou de "susto" uma cena em que o personagem estava no menu da loja de armas. Com **Configurações → Conferir a imagem** ligado (vem ligado), 4 quadros de cada trecho aprovado vão pra uma IA de visão, que reprova menu, loja, mapa e tela de carregamento.
+
+| Modelo | Disco | VRAM | Por trecho | No teste |
+|---|---|---|---|---|
+| `qwen3-vl:4b-instruct` (padrão) | 3,3 GB | ~5 GB | ~3 s | Reconheceu a loja e reprovou; descreveu bem as outras cenas |
+| `qwen3-vl:2b-instruct` | menor | placa de 4 a 6 GB | — | Não testado |
+| `gemma3:4b` | 3,4 GB | ~4,7 GB | ~3 s | Reconheceu a loja, mas concorda com qualquer título |
+
+Ele é baixado sozinho na primeira vez. Antes de carregar o modelo de imagem, o programa tira o de texto da placa, então os dois não precisam caber juntos. Com chave do Gemini, a conferência vai pra ele primeiro (melhor e mais rápido) e a local fica de reserva.
+
 A transcrição e a IA local não rodam ao mesmo tempo: o programa libera a placa depois de transcrever. Por isso uma RTX 2060 de 12 GB dá conta das duas coisas com folga.
 
 **Desinstalar:** botão **Desinstalar** na mesma tela, ou apague a pasta `dados\ollama`.
@@ -228,9 +246,10 @@ A primeira vez demora mais: baixa o modelo de transcrição (~1,6 GB) e, se usar
 |---|---|---|
 | O link que você colou | Site do vídeo (via yt-dlp) | Pra baixar o áudio e os trechos |
 | **Texto falado** dos trechos candidatos + título e canal do vídeo | Groq ou Google, se você colocou a chave | Na etapa de filtro |
+| **4 quadros (imagens pequenas) de cada trecho aprovado** | Google, se você colocou a chave do Gemini e a conferência da imagem está ligada | Na conferência da imagem |
 | Nada | — | Se usar só a IA local |
 
-O vídeo, o áudio e os clipes nunca são enviados pra IA nenhuma. O programa não posta nada em rede social: quem decide o que vai pro ar é você.
+O áudio e os clipes prontos nunca são enviados pra IA nenhuma. Se não quiser mandar imagens pro Google, deixe a chave do Gemini vazia: a conferência é feita pela IA local. O programa não posta nada em rede social: quem decide o que vai pro ar é você.
 
 A interface roda só em `127.0.0.1` (o próprio PC) e recusa pedidos vindos de outros sites.
 
@@ -290,7 +309,8 @@ cortes_gratis/
 ├── candidatos.py     ② acha os picos sem IA e ajusta pra frase inteira
 ├── ia/
 │   ├── cliente.py    conversa com Groq, Gemini e Ollama (formato OpenAI) e troca quando a cota acaba
-│   └── avaliar.py    ③ o pedido que a IA recebe e como a resposta vira nota/corte
+│   ├── avaliar.py    ③ o pedido que a IA recebe e como a resposta vira nota/corte
+│   └── visao.py      ③b a IA que enxerga confere 4 quadros de cada trecho
 ├── corte.py          ④ legenda .ass, layouts e o comando do ffmpeg
 ├── pipeline.py       junta as etapas e guarda o estado em projeto.json
 ├── ollama_local.py   instala, liga e desliga a IA local
@@ -333,7 +353,7 @@ git push origin v0.2.0
 
 O GitHub Actions (`.github\workflows\instalador.yml`) roda os testes, compila e põe o instalador na página de Releases sozinho.
 
-Ideias que cabem bem: ler o chat da live (picos de mensagens são ótimos sinais), mandar os quadros pro Gemini conferir a imagem, rastrear o rosto pro layout `centro`.
+Ideias que cabem bem: ler o chat da live (picos de mensagens são ótimos sinais), rastrear o rosto pro layout `centro`, testar se a `qwen3-vl` sozinha dá conta também do texto (um modelo só em vez de dois).
 
 ---
 

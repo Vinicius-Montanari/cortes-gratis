@@ -61,6 +61,14 @@ PADRAO: dict = {
             "url": "http://127.0.0.1:11435/v1",
         },
     },
+    # Conferência pela imagem: depois que a IA de texto aprova um trecho,
+    # uma IA que enxerga olha 4 quadros e reprova menu, loja, loading etc.
+    "visao": {
+        "ativo": True,
+        "ordem": ["gemini", "ollama"],     # Gemini se tiver chave; senão a local
+        "modelo_local": "qwen3-vl:4b-instruct",
+        "peso": 0.4,                       # quanto a nota da imagem pesa na nota final
+    },
     "whisper": {
         "modelo": "auto",   # auto = large-v3-turbo com placa de vídeo, small sem
         "dispositivo": "auto",  # auto, cuda ou cpu

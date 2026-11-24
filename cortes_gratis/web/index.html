@@ -95,6 +95,27 @@
       <div id="lista-ias"></div>
     </div>
 
+    <div class="cartao">
+      <h2>Conferir a imagem</h2>
+      <p class="dica">A IA de texto só lê a fala e às vezes se engana ("oh meu deus" numa loja de armas vira "susto").
+        Com isto ligado, uma IA que enxerga olha 4 quadros de cada trecho aprovado: reprova menu, loja, mapa e tela de
+        carregamento, e a nota da imagem entra na nota final. Usa o Gemini se tiver chave; senão, a IA local abaixo.</p>
+      <div class="linha">
+        <label class="check"><input type="checkbox" id="visao-ativo"> Conferir a imagem antes de cortar</label>
+        <label>IA local que enxerga
+          <select id="visao-modelo">
+            <option value="qwen3-vl:4b-instruct">qwen3-vl:4b-instruct — 3,3 GB — recomendado (~5 GB de VRAM)</option>
+            <option value="qwen3-vl:2b-instruct">qwen3-vl:2b-instruct — menor, pra placa de 4 a 6 GB</option>
+            <option value="gemma3:4b">gemma3:4b — 3,4 GB — mais leve, mas aprova quase tudo</option>
+          </select>
+        </label>
+        <label>Peso da imagem na nota <b id="visao-peso-valor"></b>
+          <input id="visao-peso" type="range" min="0.1" max="0.8" step="0.1">
+        </label>
+      </div>
+      <p class="dica">O modelo de imagem local é baixado sozinho na primeira vez que precisar.</p>
+    </div>
+
     <div class="cartao" id="cartao-ollama">
       <h2>IA local (roda na sua placa de vídeo)</h2>
       <p class="dica">Instala tudo em <code id="ollama-pasta"></code>. Não precisa de admin nem de instalador.</p>
