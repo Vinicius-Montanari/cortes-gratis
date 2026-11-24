@@ -1,0 +1,6 @@
+# Tudo que o programa baixa ou gera fica em dados/ e não vai pro Git
+dados/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/

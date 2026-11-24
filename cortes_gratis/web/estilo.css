@@ -1,0 +1,127 @@
+:root {
+  --fundo: #111114;
+  --cartao: #1b1b20;
+  --borda: #2c2c34;
+  --texto: #ececf1;
+  --fraco: #9a9aa6;
+  --amarelo: #ffd60a;
+  --verde: #3ddc84;
+  --vermelho: #ff5c5c;
+  --raio: 12px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--fundo); color: var(--texto);
+  font: 15px/1.5 system-ui, "Segoe UI", Roboto, sans-serif;
+}
+header {
+  display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+  padding: 14px 28px; border-bottom: 1px solid var(--borda);
+  position: sticky; top: 0; background: rgba(17,17,20,.92); backdrop-filter: blur(8px); z-index: 5;
+}
+.marca { font-weight: 800; font-size: 19px; letter-spacing: -.3px; }
+.marca small { color: var(--fraco); font-weight: 400; font-size: 12px; margin-left: 4px; }
+.logo { color: var(--amarelo); }
+nav { display: flex; gap: 4px; }
+nav button { background: none; border: 0; color: var(--fraco); padding: 8px 14px; border-radius: 8px; }
+nav button.ativa { color: var(--texto); background: var(--cartao); }
+#chips { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { font-size: 12px; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--borda); color: var(--fraco); }
+.chip.ok { color: var(--verde); border-color: #23573a; }
+.chip.ruim { color: var(--vermelho); border-color: #5a2a2a; }
+
+main { max-width: 1120px; margin: 0 auto; padding: 28px; }
+.cartao { background: var(--cartao); border: 1px solid var(--borda); border-radius: var(--raio); padding: 22px; margin-bottom: 20px; }
+h2 { margin: 0 0 10px; font-size: 18px; }
+h3 { margin: 28px 0 12px; }
+h3 small, .dica { color: var(--fraco); font-weight: 400; font-size: 13px; }
+code { background: #26262d; padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+
+label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--fraco); }
+label.grande { font-size: 15px; color: var(--texto); font-weight: 600; margin-bottom: 14px; }
+label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--texto); }
+input, select {
+  background: #121216; color: var(--texto); border: 1px solid var(--borda);
+  border-radius: 8px; padding: 9px 11px; font: inherit; min-width: 0;
+}
+input:focus, select:focus { outline: 2px solid var(--amarelo); outline-offset: -1px; }
+#entrada { font-size: 16px; padding: 13px 14px; }
+input[type=range] { padding: 0; accent-color: var(--amarelo); }
+.linha { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 14px; }
+.linha > label { flex: 1 1 150px; }
+
+button, .botao {
+  background: #2a2a32; color: var(--texto); border: 1px solid var(--borda); border-radius: 8px;
+  padding: 9px 14px; font: inherit; cursor: pointer; text-decoration: none; display: inline-block;
+}
+button:hover, .botao:hover { border-color: #4a4a55; }
+button:disabled { opacity: .5; cursor: default; }
+.primario { background: var(--amarelo); color: #111; border-color: var(--amarelo); font-weight: 700; }
+.primario:hover { filter: brightness(1.08); }
+.perigo { color: var(--vermelho); }
+
+.layouts { border: 0; padding: 0; margin: 0; display: flex; gap: 8px; flex: 2 1 420px; }
+.layouts legend { font-size: 13px; color: var(--fraco); margin-bottom: 5px; }
+.layouts label { flex: 1; }
+.layouts input { display: none; }
+.layouts span {
+  display: block; border: 1px solid var(--borda); border-radius: 8px; padding: 9px 12px;
+  color: var(--texto); cursor: pointer; font-weight: 600;
+}
+.layouts span small { display: block; color: var(--fraco); font-weight: 400; font-size: 12px; }
+.layouts input:checked + span { border-color: var(--amarelo); background: #2a2610; }
+
+.aviso { background: #2a2610; border: 1px solid #5c5212; padding: 12px 16px; border-radius: 10px; margin-bottom: 18px; }
+.escondido { display: none !important; }
+.barra { height: 8px; background: #26262d; border-radius: 99px; overflow: hidden; margin: 14px 0 8px; }
+.barra > div { height: 100%; width: 0; background: var(--amarelo); transition: width .5s; }
+.msg { color: var(--fraco); margin: 6px 0; }
+.erro { color: var(--vermelho); white-space: pre-wrap; }
+pre { background: #0c0c0f; padding: 12px; border-radius: 8px; max-height: 260px; overflow: auto; font-size: 12px; color: var(--fraco); }
+details summary { cursor: pointer; color: var(--fraco); font-size: 13px; }
+
+.topo-projeto { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 18px; }
+.clipe { background: var(--cartao); border: 1px solid var(--borda); border-radius: var(--raio); overflow: hidden; display: flex; flex-direction: column; }
+.clipe video { width: 100%; aspect-ratio: 9/16; background: #000; display: block; }
+.clipe .info { padding: 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.clipe h4 { margin: 0; font-size: 15px; }
+.clipe .motivo { margin: 0; color: var(--fraco); font-size: 13px; }
+.clipe .acoes { margin-top: auto; }
+.clipe .acoes > * { padding: 6px 10px; font-size: 13px; }
+.ajustar { display: flex; flex-direction: column; gap: 8px; }
+.ajustar[open] { display: flex; }
+.ajustar label { margin-top: 6px; }
+.nota { font-weight: 800; color: var(--amarelo); font-size: 13px; }
+
+.descartado {
+  display: grid; grid-template-columns: 52px 110px 1fr auto; gap: 14px; align-items: center;
+  padding: 10px 14px; border-bottom: 1px solid var(--borda); font-size: 14px;
+}
+.descartado .nota { color: var(--fraco); }
+.descartado .tempo { color: var(--fraco); font-variant-numeric: tabular-nums; }
+
+.ia { border: 1px solid var(--borda); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+.ia-topo { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.ia-topo b { font-size: 15px; }
+.ia-topo .ordem { margin-left: auto; display: flex; gap: 4px; }
+.ia-topo .ordem button { padding: 2px 9px; }
+.ia .resultado { font-size: 13px; }
+.ok { color: var(--verde); }
+
+.projeto-item {
+  display: flex; justify-content: space-between; gap: 12px; align-items: center;
+  padding: 14px 18px; background: var(--cartao); border: 1px solid var(--borda); border-radius: 10px;
+  margin-bottom: 10px; cursor: pointer;
+}
+.projeto-item:hover { border-color: #4a4a55; }
+.projeto-item small { color: var(--fraco); }
+
+@media (max-width: 640px) {
+  main { padding: 16px; }
+  .descartado { grid-template-columns: 44px 1fr; }
+  .descartado .motivo { grid-column: 1 / -1; }
+}

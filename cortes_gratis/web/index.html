@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cortes Grátis</title>
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<header>
+  <div class="marca"><span class="logo">✂</span> Cortes Grátis <small id="versao"></small></div>
+  <nav>
+    <button data-aba="cortar" class="ativa">Cortar</button>
+    <button data-aba="projetos">Projetos</button>
+    <button data-aba="config">Configurações</button>
+  </nav>
+  <div id="chips"></div>
+</header>
+
+<main>
+  <!-- ============================================================ CORTAR -->
+  <section id="aba-cortar" class="aba">
+    <div id="aviso-ia" class="aviso escondido"></div>
+    <form id="form-novo" class="cartao">
+      <label class="grande">Link da live gravada ou caminho do arquivo
+        <input id="entrada" required placeholder="https://www.twitch.tv/videos/...  ou  F:\Videos\live.mp4" autocomplete="off">
+      </label>
+      <div class="linha">
+        <label>Idioma
+          <select id="idioma">
+            <option value="">Detectar sozinho</option>
+            <option value="pt" selected>Português</option>
+            <option value="en">Inglês</option>
+            <option value="es">Espanhol</option>
+          </select>
+        </label>
+        <label title="Deixe vazio pra analisar o vídeo inteiro">Só a partir de
+          <input id="trecho-inicio" placeholder="ex.: 1:00:00">
+        </label>
+        <label>até
+          <input id="trecho-fim" placeholder="ex.: 2:30:00">
+        </label>
+        <label>Nota mínima <b id="nota-valor">6</b>
+          <input id="nota-minima" type="range" min="3" max="9" step="0.5" value="6">
+        </label>
+      </div>
+      <div class="linha">
+        <fieldset class="layouts">
+          <legend>Layout</legend>
+          <label><input type="radio" name="layout" value="desfocado" checked><span>Desfocado<small>vídeo inteiro, fundo borrado</small></span></label>
+          <label><input type="radio" name="layout" value="quadrado"><span>Quadrado<small>jogo maior</small></span></label>
+          <label><input type="radio" name="layout" value="centro"><span>Centro<small>tela cheia, corta as laterais</small></span></label>
+        </fieldset>
+        <label>Crédito (@ do canal)
+          <input id="credito" placeholder="vazio = usa o nome do canal">
+        </label>
+      </div>
+      <p class="dica">Use só vídeo seu ou de canal que libera clipe. O crédito vai no vídeo e no texto do post.</p>
+      <button class="primario" type="submit">Cortar os melhores momentos</button>
+    </form>
+
+    <div id="projeto" class="escondido">
+      <div class="cartao">
+        <div class="topo-projeto">
+          <h2 id="p-titulo"></h2>
+          <div class="acoes">
+            <button id="p-pasta">Abrir pasta</button>
+            <button id="p-retomar" class="escondido">Tentar de novo</button>
+          </div>
+        </div>
+        <div class="barra"><div id="p-barra"></div></div>
+        <p id="p-msg" class="msg"></p>
+        <p id="p-erro" class="erro escondido"></p>
+        <details><summary>Ver registro</summary><pre id="p-log"></pre></details>
+      </div>
+      <h3 id="p-clipes-titulo" class="escondido">Clipes</h3>
+      <div id="p-clipes" class="grade"></div>
+      <h3 id="p-desc-titulo" class="escondido">Descartados pela IA <small>(dá pra cortar mesmo assim)</small></h3>
+      <div id="p-descartados"></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ PROJETOS -->
+  <section id="aba-projetos" class="aba escondido">
+    <div id="lista-projetos"></div>
+  </section>
+
+  <!-- ============================================================ CONFIG -->
+  <section id="aba-config" class="aba escondido">
+    <div class="cartao">
+      <h2>IAs que filtram os clipes</h2>
+      <p class="dica">O programa tenta na ordem abaixo. Quando a cota grátis de uma acaba, passa pra próxima.
+        A IA local fica por último: não tem limite, mas é mais lenta e um pouco menos esperta.</p>
+      <div id="lista-ias"></div>
+    </div>
+
+    <div class="cartao" id="cartao-ollama">
+      <h2>IA local (roda na sua placa de vídeo)</h2>
+      <p class="dica">Instala tudo em <code id="ollama-pasta"></code>. Não precisa de admin nem de instalador.</p>
+      <div id="ollama-status"></div>
+      <div class="linha">
+        <label>Modelo
+          <select id="ollama-modelo"></select>
+        </label>
+        <button id="ollama-instalar" class="primario">Instalar e ligar</button>
+        <button id="ollama-ligar">Ligar</button>
+        <button id="ollama-desligar">Desligar</button>
+        <button id="ollama-remover" class="perigo">Desinstalar</button>
+      </div>
+      <div class="barra escondido" id="ollama-barra-box"><div id="ollama-barra"></div></div>
+      <p id="ollama-msg" class="msg"></p>
+    </div>
+
+    <div class="cartao">
+      <h2>Transcrição</h2>
+      <div class="linha">
+        <label>Modelo do Whisper
+          <select id="whisper-modelo">
+            <option value="auto">Automático (large-v3-turbo com placa, small sem)</option>
+            <option value="large-v3-turbo">large-v3-turbo (melhor, precisa de placa)</option>
+            <option value="medium">medium</option>
+            <option value="small">small (rápido no processador)</option>
+            <option value="base">base (mais rápido, erra mais)</option>
+          </select>
+        </label>
+        <label>Usar
+          <select id="whisper-disp">
+            <option value="auto">Placa de vídeo se tiver</option>
+            <option value="cuda">Só placa de vídeo</option>
+            <option value="cpu">Só processador</option>
+          </select>
+        </label>
+      </div>
+      <h2>Corte</h2>
+      <div class="linha">
+        <label>Máximo de clipes <input id="max-clipes" type="number" min="1" max="30"></label>
+        <label>Trechos que a IA avalia <input id="n-candidatos" type="number" min="4" max="80"></label>
+        <label>Duração mínima (s) <input id="dur-min" type="number" min="5" max="120"></label>
+        <label>Duração máxima (s) <input id="dur-max" type="number" min="10" max="180"></label>
+      </div>
+      <div class="linha">
+        <label class="check"><input type="checkbox" id="maiuscula"> Legenda em MAIÚSCULAS</label>
+        <label class="check"><input type="checkbox" id="mostrar-gancho"> Gancho no topo</label>
+        <label class="check"><input type="checkbox" id="mostrar-credito"> Crédito no vídeo</label>
+      </div>
+      <button id="salvar-config" class="primario">Salvar</button>
+      <span id="salvo" class="msg"></span>
+      <p class="dica">Pasta de dados: <code id="pasta-dados"></code></p>
+    </div>
+  </section>
+</main>
+
+<template id="tpl-clipe">
+  <div class="clipe">
+    <video controls preload="metadata"></video>
+    <div class="info">
+      <div class="nota"></div>
+      <h4 class="titulo"></h4>
+      <p class="motivo"></p>
+      <details class="ajustar"><summary>Ajustar e refazer</summary>
+        <label>Título <input class="aj-titulo"></label>
+        <label>Gancho <input class="aj-gancho"></label>
+        <div class="linha"><label>Início <input class="aj-inicio"></label><label>Fim <input class="aj-fim"></label></div>
+        <button class="refazer">Refazer este clipe</button>
+      </details>
+      <div class="acoes">
+        <a class="baixar botao" download>Baixar</a>
+        <a class="txt botao" target="_blank">Texto do post</a>
+        <button class="apagar perigo">Apagar</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>

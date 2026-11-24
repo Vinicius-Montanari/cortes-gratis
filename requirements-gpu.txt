@@ -1,0 +1,4 @@
+# Bibliotecas da NVIDIA pra transcrever na placa de vídeo (CUDA 12 + cuDNN 9).
+# O instalar.bat só instala isto se achar uma placa NVIDIA.
+nvidia-cublas-cu12
+nvidia-cudnn-cu12>=9,<10
