@@ -83,7 +83,10 @@ def baixar_audio(link: str, pasta: Path, ini: float | None, fim: float | None,
             progresso(frac, f"Baixando o áudio: {feito >> 20} MB")
 
     opc = _opcoes_ytdlp() | {
-        "format": "bestaudio/best",
+        # Só o áudio, se o site tiver. Kick e Twitch não têm: aí pega a menor
+        # qualidade de vídeo que tenha som (160p), que traz o mesmo áudio e
+        # é dezenas de vezes menor que o 1080p.
+        "format": "bestaudio/worst[acodec!=none]/worst",
         "outtmpl": str(pasta / "audio-original.%(ext)s"),
         "progress_hooks": [gancho],
     }

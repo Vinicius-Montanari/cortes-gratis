@@ -1,6 +1,7 @@
 # Base (qualquer computador)
 faster-whisper>=1.1.0
 yt-dlp>=2025.1.1
+curl_cffi>=0.10      # o yt-dlp usa pra passar pelo Cloudflare (Kick)
 fastapi>=0.110
 uvicorn>=0.29
 numpy>=1.24
