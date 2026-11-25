@@ -210,12 +210,16 @@ def test_lista_de_verificacao_segura_nota():
     assert lim(8.0, {})[0] == 8.0
 
 
-def test_regua_maior_pra_ia_local():
+def test_nota_da_ia_local_perde_o_ajuste_e_a_minima_e_a_escolhida():
     cfg = config.carregar()
-    cfg["corte"].update(nota_minima=6, ajuste_local=1)
-    assert avaliar.passou({"nota": 6.5, "avaliado_por": "groq"}, cfg)
-    assert not avaliar.passou({"nota": 6.5, "avaliado_por": "ollama"}, cfg)
-    assert avaliar.passou({"nota": 7.0, "avaliado_por": "ollama"}, cfg)
+    cfg["corte"].update(nota_minima=8, ajuste_local=1)
+    nuvem = {"nota": 8.0, "avaliado_por": "groq", "motivo": "bom"}
+    local = {"nota": 8.0, "avaliado_por": "ollama", "motivo": "bom"}
+    avaliar.ajustar_local(nuvem, cfg["corte"])
+    avaliar.ajustar_local(local, cfg["corte"])
+    assert nuvem["nota"] == 8.0 and local["nota"] == 7.0 and "ajuste" in local["motivo"]
+    assert avaliar.minima_de(local, cfg) == 8.0  # a nota mínima não muda sozinha
+    assert avaliar.passou(nuvem, cfg) and not avaliar.passou(local, cfg)
 
 
 def test_trecho_com_pouca_fala_cai():
@@ -267,3 +271,15 @@ def test_corte_de_link_usa_relogio_original(monkeypatch):
     assert f.startswith("[0:v]trim=start=11408.171,setpts=PTS-STARTPTS,split=2[srca][srcb];")
     assert "[0:v]" not in f.split(";", 1)[1]
     assert corte.filtro_video("centro", "", exato).startswith("[0:v]trim=start=11408.171,setpts=PTS-STARTPTS[src];")
+
+
+def test_layout_camera_monta_camera_em_cima_e_jogo_embaixo():
+    from cortes_gratis import config, corte
+    cam = dict(config.PADRAO["camera"]["padrao"], cam=[0.0, 0.115, 0.24, 0.278], topo=0.15)
+    g = corte.geometria_camera(cam)
+    assert g["y_cam"] == 288 and g["cw"] == 1080 and g["y_jogo"] == g["y_cam"] + g["ch"]
+    assert g["jh"] >= 480 and g["y_jogo"] + g["jh"] == 1920
+    f = corte.filtro_video("camera", "", 500.0, g)
+    assert "split=3[srca][srcb][srcc]" in f and "[t1][jogo]overlay=0:" in f
+    ass = corte.montar_ass([], 0, 10, "GANCHO", "", True, "camera", gancho_y=g["divisa"])
+    assert rf"\pos(540,{g['divisa']})" in ass

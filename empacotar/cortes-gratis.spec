@@ -16,6 +16,7 @@ hiddenimports = (
     collect_submodules("yt_dlp.extractor")         # um módulo por site
     + collect_submodules("uvicorn")
     + collect_submodules("curl_cffi")              # o yt-dlp importa só na hora
+    + ["hf_xet"]                                   # download rápido do Whisper (importado só na hora)
     + ["cortes_gratis.servidor"]
 )
 

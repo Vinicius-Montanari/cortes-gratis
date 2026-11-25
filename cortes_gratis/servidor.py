@@ -60,6 +60,22 @@ def _trabalhador() -> None:
 threading.Thread(target=_trabalhador, daemon=True).start()
 
 
+def _enfileirar(p: pipeline.Projeto, func) -> None:
+    """Põe uma tarefa do projeto na fila, respeitando Cancelar e Excluir."""
+    def tarefa() -> None:
+        try:
+            if p.cancelar.is_set():
+                p.dados["estado"] = "cancelado"
+                p.log("Cancelado antes de começar.")
+            else:
+                func()
+        finally:
+            if p.apagar_depois:
+                pipeline.apagar_projeto(p)
+                _projetos.pop(p.id, None)
+    _fila.put(tarefa)
+
+
 def _projeto(pid: str) -> pipeline.Projeto:
     if pid not in _projetos:
         pasta = (config.PASTA_PROJETOS / pid).resolve()
@@ -151,6 +167,66 @@ def ver_logo():
     if not nome or alvo.parent != config.PASTA_MARCA.resolve() or not alvo.is_file():
         raise HTTPException(404)
     return FileResponse(alvo, headers={"Cache-Control": "no-store"})
+
+
+# ------------------------------------------------------------------ layout câmera
+_info_cache: dict[str, dict] = {}
+
+
+@app.post("/api/camera/quadro")
+async def quadro_camera(request: Request):
+    """Um quadro do vídeo pra marcar onde está a câmera do streamer."""
+    import base64
+    from . import analise, corte
+    corpo = await request.json()
+    entrada = str(corpo.get("entrada") or "").strip().strip('"')
+    if not entrada:
+        raise HTTPException(400, "Cole o link ou o caminho do vídeo primeiro.")
+
+    def pegar() -> dict:
+        if analise.eh_link(entrada):
+            if entrada not in _info_cache:
+                _info_cache[entrada] = analise.info_link(entrada)
+            fonte = _info_cache[entrada]
+        else:
+            arq = Path(entrada).expanduser()
+            if not arq.is_file():
+                raise HTTPException(400, f"Arquivo não encontrado: {arq}")
+            fonte = {"tipo": "arquivo", "arquivo": str(arq.resolve()), "canal": arq.parent.name,
+                     "canal_id": "", "duracao": ferramentas.duracao(arq)}
+        ini = analise.para_segundos(corpo.get("inicio")) or 0.0
+        fim = analise.para_segundos(corpo.get("fim")) or float(fonte.get("duracao") or 0) or ini + 60
+        t = float(corpo.get("t") or ini + (fim - ini) * 0.3)  # 30% do trecho: já passou da abertura
+        imgs = corte.quadros(fonte, t, t + 1, n=1, largura=854)
+        if not imgs:
+            raise HTTPException(502, "Não consegui tirar um quadro do vídeo. Confira o link.")
+        canal = config.chave_canal(fonte)
+        return {"canal": canal, "nome_canal": fonte.get("canal") or canal, "t": t,
+                "imagem": "data:image/jpeg;base64," + base64.b64encode(imgs[0]).decode(),
+                "camera": config.camera_de(config.carregar(), canal),
+                "salvo": canal in config.carregar()["camera"]["canais"]}
+
+    import asyncio
+    return await asyncio.to_thread(pegar)
+
+
+@app.post("/api/camera/salvar")
+async def salvar_camera(request: Request):
+    corpo = await request.json()
+    canal = str(corpo.get("canal") or "").strip().lower() or "sem-canal"
+    cam = corpo.get("camera") or {}
+    limpo = {k: cam[k] for k in ("cam", "jogo", "topo", "cam_largura", "espaco") if k in cam}
+    for k in ("cam", "jogo"):
+        if k in limpo:
+            v = [float(x) for x in limpo[k]][:4]
+            if len(v) != 4 or not all(0 <= x <= 1 for x in v):
+                raise HTTPException(400, f"Retângulo inválido: {k}")
+            limpo[k] = v
+    cfg = config.carregar()
+    cfg["camera"]["canais"][canal] = config._mesclar(cfg["camera"]["padrao"], limpo)
+    cfg["camera"]["ultimo"] = canal
+    config.salvar(cfg)
+    return {"ok": True, "canal": canal}
 
 
 @app.get("/api/marca/previa")
@@ -256,7 +332,7 @@ async def criar(request: Request):
         raise HTTPException(400, "cole um link ou o caminho de um arquivo")
     p = pipeline.novo_projeto(entrada, corpo.get("opcoes") or {})
     _projetos[p.id] = p
-    _fila.put(lambda: pipeline.rodar(p))
+    _enfileirar(p, lambda: pipeline.rodar(p))
     return {"id": p.id}
 
 
@@ -289,10 +365,54 @@ def retomar(pid: str):
     p = _projeto(pid)
     if p.dados.get("estado") in ("rodando", "na fila"):
         raise HTTPException(409, "esse projeto já está rodando")
+    p.cancelar.clear()
     p.dados["estado"] = "na fila"
     p.salvar()
-    _fila.put(lambda: pipeline.rodar(p))
+    _enfileirar(p, lambda: pipeline.rodar(p))
     return {"ok": True}
+
+
+RODANDO = ("rodando", "na fila")
+
+
+@app.post("/api/projetos/{pid}/cancelar")
+def cancelar(pid: str):
+    p = _projeto(pid)
+    if p.dados.get("estado") not in RODANDO:
+        return {"ok": True}
+    p.cancelar.set()
+    p.log("Cancelando...")
+    return {"ok": True}
+
+
+def _excluir(p: pipeline.Projeto) -> None:
+    if p.dados.get("estado") in RODANDO:
+        p.apagar_depois = True  # a fila apaga quando a tarefa parar
+        p.cancelar.set()
+        p.dados["estado"] = "excluindo"
+        p.salvar()
+    else:
+        pipeline.apagar_projeto(p)
+        _projetos.pop(p.id, None)
+
+
+@app.delete("/api/projetos/{pid}")
+def excluir(pid: str):
+    _excluir(_projeto(pid))
+    return {"ok": True}
+
+
+@app.post("/api/projetos/excluir")
+async def excluir_varios(request: Request):
+    ids = (await request.json()).get("ids") or []
+    feitos = 0
+    for pid in ids:
+        try:
+            _excluir(_projeto(str(pid)))
+            feitos += 1
+        except HTTPException:
+            continue
+    return {"ok": True, "excluidos": feitos}
 
 
 @app.post("/api/projetos/{pid}/cortar")
@@ -317,6 +437,7 @@ async def cortar(pid: str, request: Request):
         ids.append(c["id"])
     if not ids:
         raise HTTPException(400, "nenhum clipe escolhido")
+    p.cancelar.clear()
     p.dados["estado"] = "na fila"
     p.salvar()
 
@@ -325,7 +446,10 @@ async def cortar(pid: str, request: Request):
         try:
             pipeline.cortar(p, ids)
             p.dados["estado"] = "pronto"
-            p.log("Clipes refeitos")
+            p.log("Clipes prontos")
+        except pipeline.Cancelado:
+            p.dados["estado"] = "pronto"
+            p.log("Corte cancelado.")
         except Exception as e:  # noqa: BLE001
             p.dados["estado"] = "erro"
             p.dados["erro"] = str(e)
@@ -333,7 +457,7 @@ async def cortar(pid: str, request: Request):
         finally:
             p.salvar()
 
-    _fila.put(tarefa)
+    _enfileirar(p, tarefa)
     return {"ok": True}
 
 
@@ -351,6 +475,23 @@ def abrir_pasta(pid: str):
         os.startfile(pasta)  # noqa: S606 - abre o Explorer na pasta do projeto
     elif platform.system() == "Darwin":
         subprocess.Popen(["open", str(pasta)])
+    else:
+        subprocess.Popen(["xdg-open", str(pasta)])
+    return {"ok": True}
+
+
+@app.post("/api/projetos/{pid}/mostrar-arquivo")
+async def mostrar_arquivo(pid: str, request: Request):
+    """Abre o Explorer com o clipe já selecionado (pra arrastar pro OmniClip)."""
+    nome = str((await request.json()).get("nome") or "")
+    pasta = (_projeto(pid).pasta / "clipes").resolve()
+    alvo = (pasta / nome).resolve()
+    if alvo.parent != pasta or not alvo.is_file():
+        raise HTTPException(404, "Clipe não encontrado.")
+    if os.name == "nt":
+        subprocess.Popen(["explorer", "/select,", str(alvo)])  # noqa: S603,S607
+    elif platform.system() == "Darwin":
+        subprocess.Popen(["open", "-R", str(alvo)])
     else:
         subprocess.Popen(["xdg-open", str(pasta)])
     return {"ok": True}

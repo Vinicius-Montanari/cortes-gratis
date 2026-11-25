@@ -5,3 +5,4 @@ curl_cffi>=0.10      # o yt-dlp usa pra passar pelo Cloudflare (Kick)
 fastapi>=0.110
 uvicorn>=0.29
 numpy>=1.24
+hf_xet>=1.0          # baixa o modelo do Whisper mais rápido (e sem aviso no console)

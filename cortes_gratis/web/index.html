@@ -74,8 +74,49 @@
             <label><input type="radio" name="layout" value="desfocado" checked><span class="tile"><span class="mini desfocado"><i></i></span><span><b>Desfocado</b><small>vídeo inteiro, fundo borrado</small></span></span></label>
             <label><input type="radio" name="layout" value="quadrado"><span class="tile"><span class="mini quadrado"><i></i></span><span><b>Quadrado</b><small>jogo maior</small></span></span></label>
             <label><input type="radio" name="layout" value="centro"><span class="tile"><span class="mini centro"><i></i></span><span><b>Centro</b><small>tela cheia, corta laterais</small></span></span></label>
+            <label><input type="radio" name="layout" value="camera"><span class="tile"><span class="mini camera"><i></i><i></i></span><span><b>Câmera + jogo</b><small>streamer em cima, jogo embaixo</small></span></span></label>
           </div>
         </fieldset>
+
+        <div id="painel-camera" class="cartao painel-camera escondido">
+          <div class="cabeca-cartao">
+            <div>
+              <h3>Onde está a câmera?</h3>
+              <p class="dica" style="margin:4px 0 0">Arraste o retângulo verde até a câmera do streamer e ajuste pelo canto.
+                O tracejado é a parte do jogo que vai embaixo. Fica salvo por canal.</p>
+            </div>
+            <button type="button" id="cam-carregar">Pegar um quadro do vídeo</button>
+          </div>
+          <p id="cam-msg" class="msg"></p>
+          <div class="editor-camera escondido" id="cam-editor">
+            <div class="fonte-box">
+              <div class="fonte-palco" id="cam-palco">
+                <img id="cam-img" alt="Quadro do vídeo" draggable="false">
+                <div class="retangulo ret-cam" id="ret-cam" data-chave="cam"><span>câmera</span><i class="alca"></i></div>
+                <div class="retangulo ret-jogo" id="ret-jogo" data-chave="jogo"><span>jogo</span><i class="alca"></i></div>
+              </div>
+              <div class="acoes">
+                <button type="button" id="cam-outro">Outro quadro</button>
+                <button type="button" id="cam-jogo-todo">Jogo: tela toda</button>
+              </div>
+            </div>
+            <div class="previa-camera">
+              <canvas id="cam-previa" width="270" height="480" aria-label="Prévia do clipe 9:16"></canvas>
+            </div>
+            <div class="controles-marca">
+              <label><span class="valor-linha">Espaço no topo <b id="cam-topo-v"></b></span>
+                <input id="cam-topo" type="range" min="0" max="0.4" step="0.01"></label>
+              <label><span class="valor-linha">Largura da câmera <b id="cam-largura-v"></b></span>
+                <input id="cam-largura" type="range" min="0.5" max="1" step="0.01"></label>
+              <label><span class="valor-linha">Espaço entre câmera e jogo <b id="cam-espaco-v"></b></span>
+                <input id="cam-espaco" type="range" min="0" max="0.1" step="0.005"></label>
+              <div class="salvar-linha">
+                <span id="cam-salvo" class="msg"></span>
+                <button type="button" id="cam-salvar" class="primario">Salvar pra este canal</button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <label>Crédito (@ do canal)
           <input id="credito" placeholder="vazio = usa o nome do canal">
@@ -128,7 +169,9 @@
       </div>
       <div class="acoes">
         <button id="p-retomar" class="primario escondido">Tentar de novo</button>
+        <button id="p-cancelar" class="escondido">Cancelar</button>
         <button id="p-pasta">Abrir pasta</button>
+        <button id="p-excluir" class="perigo">Excluir projeto</button>
       </div>
     </div>
 
@@ -149,12 +192,22 @@
       <div class="marcas-tempo" id="p-marcas"></div>
     </div>
 
+    <div id="p-clipes-barra" class="barra-selecao escondido">
+      <label class="check"><input type="checkbox" id="clipes-todos"> Selecionar todos os clipes</label>
+      <span class="meta" id="clipes-qtd"></span>
+      <button id="clipes-descartar" disabled>Tirar dos aprovados</button>
+    </div>
     <div id="p-clipes" class="lista-clipes"></div>
 
     <div id="p-desc-box" class="escondido">
       <div class="cabeca-desc">
         <h3>Descartados pela IA <small>· dá pra cortar mesmo assim</small></h3>
         <span class="meta" id="p-regua"></span>
+      </div>
+      <div class="barra-selecao">
+        <label class="check"><input type="checkbox" id="desc-todos"> Selecionar todos</label>
+        <span class="meta" id="desc-qtd"></span>
+        <button id="desc-aprovar" class="primario" disabled>Aprovar e cortar selecionados</button>
       </div>
       <div id="p-descartados"></div>
     </div>
@@ -163,6 +216,11 @@
   <!-- ============================================================ PROJETOS -->
   <section id="aba-projetos" class="aba escondido">
     <h1 style="font-size:32px;margin-bottom:24px">Projetos</h1>
+    <div class="barra-selecao" id="proj-barra">
+      <label class="check"><input type="checkbox" id="proj-todos"> Selecionar todos</label>
+      <span class="meta" id="proj-qtd"></span>
+      <button id="proj-excluir" class="perigo" disabled>Excluir selecionados</button>
+    </div>
     <div id="lista-projetos"></div>
   </section>
 
@@ -365,7 +423,7 @@
   <div class="clipe">
     <video controls preload="metadata"></video>
     <div class="info">
-      <div class="cabeca-clipe"><span class="nota-selo"></span><span class="meta tempo"></span></div>
+      <div class="cabeca-clipe"><input type="checkbox" class="sel" aria-label="Selecionar este clipe"><span class="nota-selo"></span><span class="meta tempo"></span></div>
       <h4 class="titulo"></h4>
       <p class="motivo"></p>
       <div class="selos"></div>
@@ -381,6 +439,7 @@
       <div class="acoes">
         <a class="baixar botao primario" download>Baixar .mp4</a>
         <a class="txt botao" target="_blank">Texto do post</a>
+        <button class="omniclip" title="Abre o OmniClip (editor de vídeo grátis que roda no navegador, sem enviar o vídeo pra lugar nenhum) e mostra o arquivo pra você arrastar pra dentro dele">Editar no OmniClip</button>
         <button class="apagar perigo">Apagar</button>
       </div>
     </div>

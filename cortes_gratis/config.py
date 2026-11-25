@@ -35,6 +35,12 @@ ARQUIVO_CONFIG = DADOS / "config.json"
 # Bibliotecas que guardam cache na pasta do usuário (no C:) passam a guardar aqui.
 os.environ.setdefault("HF_HOME", str(DADOS / "cache-huggingface"))
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+# O modelo do Whisper vem do Hugging Face e não precisa de conta. Sem isto, o
+# console mostra "unauthenticated requests... set a HF_TOKEN", que assusta mas
+# não é erro.
+os.environ.setdefault("HF_HUB_VERBOSITY", "error")
+os.environ.setdefault("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1")
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 os.environ.setdefault("XDG_CACHE_HOME", str(DADOS / "cache"))
 
 PADRAO: dict = {
@@ -81,10 +87,25 @@ PADRAO: dict = {
         "candidatos": 24,       # quantos trechos a IA avalia
         "dur_min": 20,
         "dur_max": 60,
-        "layout": "desfocado",  # desfocado, quadrado ou centro
+        "layout": "desfocado",  # desfocado, quadrado, centro ou camera
         "legenda_maiuscula": True,
         "mostrar_gancho": True,
         "mostrar_credito": True,
+    },
+    # Layout "camera": câmera do streamer em cima, jogo embaixo. Os retângulos
+    # são frações do vídeo original [x, y, largura, altura]. Cada canal tem o
+    # seu (a câmera fica num lugar diferente em cada live); "ultimo" é o que
+    # foi salvo por último e serve de ponto de partida pra canal novo.
+    "camera": {
+        "padrao": {
+            "cam": [0.0, 0.0, 0.25, 0.25],   # canto de cima à esquerda
+            "jogo": [0.0, 0.0, 1.0, 1.0],    # a tela toda (pega o centro)
+            "topo": 0.15,                    # espaço vazio acima da câmera
+            "cam_largura": 1.0,              # largura da câmera na tela 9:16
+            "espaco": 0.0,                   # espaço entre a câmera e o jogo
+        },
+        "canais": {},
+        "ultimo": "",
     },
     # Sua marca: logo e @ de quem fez o corte. Posições em fração da tela
     # (0 a 1, centro do elemento), então valem pra qualquer layout.
@@ -134,6 +155,18 @@ def salvar(cfg: dict) -> dict:
         tmp.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
         tmp.replace(ARQUIVO_CONFIG)
     return cfg
+
+
+def chave_canal(fonte: dict) -> str:
+    """Nome usado pra guardar a posição da câmera de cada canal."""
+    return str(fonte.get("canal_id") or fonte.get("canal") or "").strip().lower()
+
+
+def camera_de(cfg: dict, canal: str) -> dict:
+    """Posição da câmera do canal; canal novo parte da última salva."""
+    cam = cfg.get("camera") or PADRAO["camera"]
+    salvo = cam["canais"].get(canal) or cam["canais"].get(cam.get("ultimo") or "") or {}
+    return _mesclar(cam["padrao"], salvo)
 
 
 def preparar_pastas() -> None:

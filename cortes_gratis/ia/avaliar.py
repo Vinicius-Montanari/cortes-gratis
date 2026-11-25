@@ -119,6 +119,7 @@ def avaliar(cands: list[dict], frases: list[dict], energia: dict, fonte: dict,
                 c.update(nota=0, motivo="a IA não avaliou este trecho")
                 continue
             _aplicar(c, a, linhas_de[c["id"]], cc)
+            ajustar_local(c, cc)
     progresso(1.0, "IA terminou de avaliar")
     for c in cands:
         c["ia"] = ", ".join(f"{k} ×{v}" for k, v in cadeia.usadas.items())
@@ -213,12 +214,21 @@ def _aplicar(c: dict, a: dict, linhas: list[dict], cc: dict) -> None:
             c["inicio"], c["fim"] = round(ini, 2), round(min(fim, ini + cc["dur_max"]), 2)
 
 
+def ajustar_local(c: dict, cc: dict) -> None:
+    """A IA local (modelo pequeno) é mais boazinha: a nota dela perde
+    `ajuste_local` pontos, e o motivo diz isso. Assim a nota mínima que a
+    pessoa escolheu vale como ela escolheu (antes a régua subia sozinha)."""
+    extra = float(cc.get("ajuste_local", 1.0) or 0)
+    if c.get("avaliado_por") != "ollama" or extra <= 0 or "nota" not in c:
+        return
+    c["nota"] = round(max(0.0, c["nota"] - extra), 1)
+    c["ajuste_local"] = extra
+    c["motivo"] = f"{c.get('motivo', '')} (IA local: −{extra:g} de ajuste)".strip()
+
+
 def minima_de(c: dict, cfg: dict) -> float:
-    """Nota mínima pra esse trecho virar clipe. Se quem julgou foi a IA local
-    (modelo pequeno, mais boazinha), a régua sobe um pouco."""
-    cc = cfg["corte"]
-    extra = cc.get("ajuste_local", 1.0) if c.get("avaliado_por") == "ollama" else 0.0
-    return cc["nota_minima"] + extra
+    """Nota mínima pra esse trecho virar clipe: a que a pessoa escolheu."""
+    return float(cfg["corte"]["nota_minima"])
 
 
 def passou(c: dict, cfg: dict) -> bool:

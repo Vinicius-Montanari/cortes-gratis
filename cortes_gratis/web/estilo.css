@@ -147,7 +147,7 @@ details summary { cursor: pointer; color: var(--apoio); font-size: 13px; }
 
 .layouts { border: 0; padding: 0; margin: 0; }
 .layouts legend { font-size: 13px; color: var(--apoio); margin-bottom: 8px; padding: 0; }
-.layouts .opcoes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.layouts .opcoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
 .layouts label { flex-direction: row; cursor: pointer; }
 .layouts input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .layouts .tile {
@@ -306,3 +306,38 @@ details summary { cursor: pointer; color: var(--apoio); font-size: 13px; }
 .rotulo-campo { display: block; font-size: 13px; color: var(--apoio); margin-bottom: 6px; }
 .valor-linha { display: flex; justify-content: space-between; }
 .valor-linha b { font: 500 13px var(--mono); color: var(--texto); }
+
+/* ------------------------------------------------------------ layout câmera */
+.mini.camera { flex-direction: column; justify-content: flex-start; padding-top: 7px; gap: 2px; }
+.mini.camera i:first-child { height: 17px; }
+.mini.camera i:last-child { height: 34px; }
+.painel-camera { margin: 0; }
+.painel-camera h3 { font-size: 16px; }
+.editor-camera { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; margin-top: 14px; }
+.fonte-box { flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.fonte-palco { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; overflow: hidden; user-select: none; touch-action: none; }
+.fonte-palco img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
+.retangulo { position: absolute; box-sizing: border-box; cursor: move; touch-action: none; }
+.retangulo span { position: absolute; left: 0; top: 0; font: 500 11px var(--mono); padding: 2px 6px; border-radius: 0 0 6px 0; pointer-events: none; }
+.ret-cam { border: 2px solid #3DF28A; background: rgba(61, 242, 138, .12); z-index: 2; }
+.ret-cam span { background: #3DF28A; color: #0B110E; }
+.ret-jogo { border: 2px dashed rgba(255, 255, 255, .85); z-index: 1; }
+.ret-jogo span { background: rgba(255, 255, 255, .85); color: #0B110E; }
+.alca { position: absolute; right: -10px; bottom: -10px; width: 20px; height: 20px; border-radius: 3px; background: #fff; border: 2px solid #0B110E; cursor: nwse-resize; }
+.previa-camera { flex: none; }
+.previa-camera canvas { width: 216px; height: 384px; border-radius: 10px; background: #0F1713; display: block; }
+
+/* ------------------------------------------------------------ aviso rápido */
+#aviso-rapido { position: fixed; right: 24px; bottom: 24px; max-width: 380px; z-index: 20; background: var(--cartao); color: var(--texto); border: 1px solid var(--chroma); border-radius: 10px; padding: 14px 16px; font-size: 14px; line-height: 1.5; opacity: 0; transform: translateY(8px); transition: opacity .2s, transform .2s; pointer-events: none; }
+#aviso-rapido.ver { opacity: 1; transform: none; }
+
+/* ------------------------------------------------------------ seleção de vários */
+.barra-selecao { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; padding: 10px 14px; margin-bottom: 12px; background: var(--cartao); border: 1px solid var(--linha); border-radius: 10px; }
+.barra-selecao .meta { margin: 0; flex: 1; }
+.barra-selecao button { height: 38px; }
+.descartado input[type=checkbox], .projeto-linha input[type=checkbox] { flex: none; }
+.descartado.marcado, .projeto-linha.marcado { background: var(--escolhido); }
+.clipe.marcado { border-color: var(--chroma); }
+.projeto-linha { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; border-radius: 10px; padding-left: 14px; }
+.projeto-linha .projeto-item { margin-bottom: 0; flex: 1; }
+.estado-tag { font: 12px var(--mono); padding: 2px 8px; border-radius: 5px; border: 1px solid var(--linha-2); color: var(--apoio); margin-left: 8px; }

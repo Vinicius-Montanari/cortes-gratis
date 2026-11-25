@@ -68,6 +68,8 @@ def info_link(link: str) -> dict:
         "duracao": float(info.get("duration") or 0),
         "licenca": info.get("license") or "",
         "plataforma": info.get("extractor_key") or "",
+        "largura": int(info.get("width") or 0),
+        "altura": int(info.get("height") or 0),
     }
 
 
@@ -125,10 +127,14 @@ def baixar_trecho_wav(link: str, wav: Path, ini: float, fim: float, progresso: P
     proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                             creationflags=ferramentas.SEM_JANELA)
     total = dur * TAXA * 2
-    while proc.poll() is None:
-        feito = wav.stat().st_size if wav.exists() else 0
-        progresso(min(feito / total, 1.0), f"Baixando o áudio: {feito / total:.0%}")
-        time.sleep(1)
+    try:
+        while proc.poll() is None:
+            feito = wav.stat().st_size if wav.exists() else 0
+            progresso(min(feito / total, 1.0), f"Baixando o áudio: {feito / total:.0%}")
+            time.sleep(1)
+    except BaseException:  # cancelado no meio: não deixa o ffmpeg baixando sozinho
+        proc.kill()
+        raise
     erro = proc.stderr.read().decode("utf-8", "replace") if proc.stderr else ""
     if proc.returncode != 0 or not wav.exists() or wav.stat().st_size < TAXA * 2:
         raise RuntimeError("Não deu pra baixar o áudio do trecho. " + erro[-500:])

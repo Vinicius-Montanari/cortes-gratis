@@ -89,7 +89,8 @@ def marca_ativa(marca: dict | None) -> dict | None:
 
 
 def montar_ass(palavras: list[dict], ini: float, fim: float, gancho: str, credito: str,
-               maiusculas: bool, layout: str, marca: dict | None = None) -> str:
+               maiusculas: bool, layout: str, marca: dict | None = None,
+               gancho_y: int | None = None) -> str:
     """Gera o arquivo de legenda. `palavras` vêm com o tempo do vídeo original."""
     dur = fim - ini
     margem_legenda = 470 if layout != "centro" else 380
@@ -111,7 +112,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     ev: list[str] = []
     if gancho:
-        ev.append(f"Dialogue: 1,{_t(0)},{_t(dur)},Gancho,,0,0,0,,{_esc(gancho)}")
+        # Layout câmera: o gancho fica na divisa entre a câmera e o jogo.
+        pos = f"{{\\an5\\pos({LARGURA // 2},{gancho_y})}}" if gancho_y else ""
+        ev.append(f"Dialogue: 1,{_t(0)},{_t(dur)},Gancho,,0,0,0,,{pos}{_esc(gancho)}")
     if credito:
         ev.append(f"Dialogue: 1,{_t(0)},{_t(dur)},Credito,,0,0,0,,{_esc(credito)}")
     if marca and marca.get("texto"):
@@ -155,17 +158,72 @@ def filtro_logo(indice: int, marca: dict, dur: float) -> str:
             f"[base][logo]overlay={x}-w/2:{y}-h/2:enable='{quando}'[comlogo];")
 
 
-def filtro_video(layout: str, logo: str = "", corte: float | None = None) -> str:
+def _par(v: float) -> int:
+    """Arredonda pra número par (o codificador de vídeo exige)."""
+    return max(2, int(round(v / 2)) * 2)
+
+
+def geometria_camera(cam: dict, aspecto_fonte: float = 16 / 9) -> dict:
+    """Onde fica cada coisa no layout câmera (em pixels da tela 1080x1920).
+
+    A altura da câmera sai da proporção do retângulo marcado no vídeo
+    original; o jogo ocupa o que sobra embaixo."""
+    x, y, w, h = (float(v) for v in cam["cam"])
+    w, h = max(w, 0.02), max(h, 0.02)
+    cw = _par(LARGURA * min(1.0, max(0.3, float(cam.get("cam_largura", 1.0)))))
+    proporcao = (h / w) / aspecto_fonte            # altura/largura da câmera de verdade
+    y_cam = _par(ALTURA * min(0.5, max(0.0, float(cam.get("topo", 0.15)))))
+    ch = _par(cw * proporcao)
+    maximo = ALTURA - y_cam - 480                  # deixa pelo menos 480 px pro jogo
+    if ch > maximo:                                # câmera alta demais: encolhe sem deformar
+        ch = _par(maximo)
+        cw = _par(ch / proporcao)
+    y_jogo = _par(y_cam + ch + ALTURA * min(0.2, max(0.0, float(cam.get("espaco", 0.0)))))
+    return {"cam": [x, y, w, h], "jogo": [float(v) for v in cam.get("jogo", [0, 0, 1, 1])],
+            "cw": cw, "ch": ch, "x_cam": (LARGURA - cw) // 2, "y_cam": y_cam,
+            "y_jogo": y_jogo, "jh": _par(ALTURA - y_jogo), "divisa": y_cam + ch}
+
+
+def _filtro_camera(a: str, b: str, c: str, g: dict) -> str:
+    """Fundo borrado + câmera recortada em cima + centro do jogo embaixo."""
+    cx, cy, cw, ch = g["cam"]
+    jx, jy, jw, jh = g["jogo"]
+    asp = LARGURA / g["jh"]  # proporção da área do jogo na tela
+    fundo = (f"{a}scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
+             "boxblur=20:3,eq=brightness=-0.12,scale=1080:1920,setsar=1[fundo];")
+    camera = (f"{b}crop=w=iw*{cw:.4f}:h=ih*{ch:.4f}:x=iw*{cx:.4f}:y=ih*{cy:.4f},"
+              f"scale={g['cw']}:{g['ch']},setsar=1[cam];")
+    # Do retângulo do jogo, pega o maior pedaço do centro com a proporção da área de baixo.
+    jogo = (f"{c}crop=w='min(iw*{jw:.4f},ih*{jh:.4f}*{asp:.5f})'"
+            f":h='min(ih*{jh:.4f},iw*{jw:.4f}/{asp:.5f})'"
+            f":x='iw*{jx:.4f}+(iw*{jw:.4f}-ow)/2':y='ih*{jy:.4f}+(ih*{jh:.4f}-oh)/2',"
+            f"scale={LARGURA}:{g['jh']},setsar=1[jogo];")
+    return (fundo + camera + jogo
+            + f"[fundo][cam]overlay={g['x_cam']}:{g['y_cam']}[t1];"
+            + f"[t1][jogo]overlay=0:{g['y_jogo']}[base];")
+
+
+def filtro_video(layout: str, logo: str = "", corte: float | None = None,
+                 camera: dict | None = None) -> str:
     """Monta o filtro do ffmpeg para cada layout. Saída sempre 1080x1920.
     `logo` é o pedaço de filtro_logo (ou vazio, sem logo). `corte` é onde o
-    clipe começa no relógio original do vídeo (link lido com -copyts)."""
-    pre, a, b = "", "[0:v]", "[0:v]"
+    clipe começa no relógio original do vídeo (link lido com -copyts).
+    `camera` é a geometria_camera, só pro layout "camera"."""
+    if layout == "camera" and not camera:
+        layout = "desfocado"
+    usos = {"centro": 1, "camera": 3}.get(layout, 2)
+    rotulos = ["[0:v]"] * 3
+    pre = ""
     if corte is not None:
         pre = f"[0:v]trim=start={corte:.3f},setpts=PTS-STARTPTS"
-        if layout == "centro":
-            pre, a = pre + "[src];", "[src]"
+        if usos == 1:
+            pre, rotulos[0] = pre + "[src];", "[src]"
         else:
-            pre, a, b = pre + ",split=2[srca][srcb];", "[srca]", "[srcb]"
+            rotulos = [f"[src{k}]" for k in "abc"[:usos]] + ["[0:v]"] * (3 - usos)
+            pre += f",split={usos}" + "".join(rotulos[:usos]) + ";"
+    a, b = rotulos[0], rotulos[1]
+    if layout == "camera":
+        return _fim_filtro(pre + _filtro_camera(a, b, rotulos[2], camera), logo)
     fundo = (f"{a}scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
              "boxblur=20:3,eq=brightness=-0.12,scale=1080:1920,setsar=1[fundo];")
     if layout == "centro":
@@ -177,7 +235,10 @@ def filtro_video(layout: str, logo: str = "", corte: float | None = None) -> str
         else:  # desfocado
             frente = f"{b}scale=1080:-2,setsar=1[frente];"
         base = fundo + frente + "[fundo][frente]overlay=(W-w)/2:(H-h)/2[base];"
-    base = pre + base
+    return _fim_filtro(pre + base, logo)
+
+
+def _fim_filtro(base: str, logo: str) -> str:
     if logo:
         return base + logo + "[comlogo]ass=legenda.ass[v]"
     return base + "[base]ass=legenda.ass[v]"
@@ -304,9 +365,14 @@ def renderizar(fonte: dict, clipe: dict, palavras: list[dict], pasta_saida: Path
     gancho = clipe.get("gancho", "") if opcoes.get("mostrar_gancho", True) else ""
     layout = opcoes.get("layout", "desfocado")
     marca = marca_ativa(opcoes.get("marca"))
+    geo = None
+    if layout == "camera" and opcoes.get("camera"):
+        larg, alt = int(fonte.get("largura") or 0), int(fonte.get("altura") or 0)
+        geo = geometria_camera(opcoes["camera"], larg / alt if larg and alt else 16 / 9)
     (trab / "legenda.ass").write_text(
         montar_ass(palavras, ini, fim, gancho, credito,
-                   opcoes.get("legenda_maiuscula", True), layout, marca), encoding="utf-8")
+                   opcoes.get("legenda_maiuscula", True), layout, marca,
+                   gancho_y=geo["divisa"] if geo else None), encoding="utf-8")
 
     entradas, cortes = _entradas(fonte, ini, dur)
     n_entradas = entradas.count("-i")
@@ -328,7 +394,7 @@ def renderizar(fonte: dict, clipe: dict, palavras: list[dict], pasta_saida: Path
     mp4 = pasta_saida / f"{nome}.mp4"
     args = [ferramentas.caminho_ffmpeg() or "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
             *entradas,
-            "-filter_complex", filtro_video(layout, pedaco_logo, cortes[0]) + filtro_audio,
+            "-filter_complex", filtro_video(layout, pedaco_logo, cortes[0], geo) + filtro_audio,
             "-map", "[v]",
             *(["-map", "[a]"] if filtro_audio else ["-map", audio, "-af", volume]),
             *cod, "-pix_fmt", "yuv420p", "-r", "30",

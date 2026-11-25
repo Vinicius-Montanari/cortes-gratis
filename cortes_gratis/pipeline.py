@@ -7,6 +7,7 @@ o que já foi feito (transcrição, avaliação) não é refeito.
 from __future__ import annotations
 
 import json
+import shutil
 import threading
 import time
 import traceback
@@ -22,11 +23,17 @@ ETAPAS = [("analise", "Transcrevendo", 0.42), ("candidatos", "Procurando momento
           ("corte", "Cortando", 0.38)]
 
 
+class Cancelado(Exception):
+    """A pessoa clicou em Cancelar: para no próximo passo."""
+
+
 class Projeto:
     def __init__(self, pasta: Path):
         self.pasta = pasta
         self.arquivo = pasta / "projeto.json"
         self.trava = threading.Lock()
+        self.cancelar = threading.Event()   # ligado pelo botão Cancelar
+        self.apagar_depois = False          # Excluir enquanto rodava: apaga quando parar
         self.dados: dict = {}
         if self.arquivo.exists():
             self.dados = json.loads(self.arquivo.read_text(encoding="utf-8"))
@@ -35,7 +42,13 @@ class Projeto:
     def id(self) -> str:
         return self.pasta.name
 
+    def conferir_cancelado(self) -> None:
+        if self.cancelar.is_set():
+            raise Cancelado()
+
     def salvar(self) -> None:
+        if not self.pasta.exists():  # projeto excluído: não recria a pasta
+            return
         with self.trava:
             tmp = self.arquivo.with_suffix(".tmp")
             tmp.write_text(json.dumps(self.dados, ensure_ascii=False, indent=2), "utf-8")
@@ -58,6 +71,7 @@ class Projeto:
         ultimo = [0.0]
 
         def cb(frac: float, msg: str) -> None:
+            self.conferir_cancelado()  # todo passo longo chama isto: é aqui que o Cancelar pega
             if "tentando de outro jeito" in msg:  # aviso importante: vai pro registro
                 self.log(msg)
             self.dados["etapa"] = etapa
@@ -156,7 +170,7 @@ def rodar(p: Projeto) -> None:
             c["escolhido"] = c in escolhidos
         p.log(f"{len(escolhidos)} de {len(cands)} trechos aprovados pela IA "
               f"(nota mínima {cc['nota_minima']}; "
-              f"{cc['nota_minima'] + cc.get('ajuste_local', 1)} quando quem julga é a IA local)")
+              f"as notas da IA local já vêm com −{cc.get('ajuste_local', 1)} de ajuste)")
         if not escolhidos:
             p.dados["estado"] = "pronto"
             p.log("Nenhum trecho passou da nota mínima. Baixe a nota mínima ou "
@@ -168,6 +182,9 @@ def rodar(p: Projeto) -> None:
         p.dados["estado"] = "pronto"
         p.dados["progresso"] = 1.0
         p.log("Pronto!")
+    except Cancelado:
+        p.dados["estado"] = "cancelado"
+        p.log("Cancelado. Dá pra continuar depois em Tentar de novo.")
     except Exception as e:  # noqa: BLE001 - mostra qualquer erro na tela
         p.dados["estado"] = "erro"
         p.dados["erro"] = str(e)
@@ -184,6 +201,7 @@ def cortar(p: Projeto, ids: list[int], cfg: dict | None = None) -> None:
     opcoes = cfg["corte"] | {k: v for k, v in op.items() if k in cfg["corte"] or k == "credito"}
     opcoes["marca"] = cfg.get("marca")
     fonte, frases = p.ler("fonte.json"), p.ler("transcricao.json")
+    opcoes["camera"] = op.get("camera") or config.camera_de(cfg, config.chave_canal(fonte))
     palavras = corte.palavras_de(frases)
     por_id = {c["id"]: c for c in p.dados["candidatos"]}
     saida = p.pasta / "clipes"
@@ -191,6 +209,7 @@ def cortar(p: Projeto, ids: list[int], cfg: dict | None = None) -> None:
     clipes = {cl["id"]: cl for cl in p.dados.get("clipes", [])}
     prog = p.progresso("corte")
     for n, cid in enumerate(ids):
+        p.conferir_cancelado()
         c = por_id[cid]
         antigo = clipes.get(cid)
         if antigo:  # refazendo: apaga a versão anterior
@@ -205,6 +224,14 @@ def cortar(p: Projeto, ids: list[int], cfg: dict | None = None) -> None:
         c["escolhido"] = True
         p.dados["clipes"] = sorted(clipes.values(), key=lambda x: x["id"])
         p.log(f"Clipe {cid} pronto: {c.get('titulo')}")
+
+
+def apagar_projeto(p: Projeto) -> None:
+    """Apaga a pasta do projeto inteira (clipes, transcrição, tudo)."""
+    pasta = p.pasta.resolve()
+    if pasta.parent != config.PASTA_PROJETOS.resolve():
+        raise RuntimeError("pasta de projeto inválida")
+    shutil.rmtree(pasta, ignore_errors=True)
 
 
 def remover_clipe(p: Projeto, cid: int) -> None:

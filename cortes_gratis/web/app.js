@@ -42,7 +42,23 @@ const LINKS_CHAVE = {
   gemini: ["https://aistudio.google.com/app/apikey", "Pegar chave grátis no Google AI Studio"],
 };
 
+const OMNICLIP = "https://omniclip.app/";
 let estado = null;
+
+// Aviso rápido no canto da tela.
+function avisar(texto) {
+  let el = $("#aviso-rapido");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "aviso-rapido";
+    el.setAttribute("role", "status");
+    document.body.appendChild(el);
+  }
+  el.textContent = texto;
+  el.classList.add("ver");
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => el.classList.remove("ver"), 7000);
+}
 let projetoAtual = null;
 let timerProjeto = null;
 
@@ -135,6 +151,7 @@ $("#form-novo").addEventListener("submit", async (e) => {
       trecho_fim: $("#trecho-fim").value.trim(),
       nota_minima: parseFloat($("#nota-minima").value),
       layout: $("input[name=layout]:checked").value,
+      ...(camAtual && $("input[name=layout]:checked").value === "camera" ? { camera: camAtual.camera } : {}),
       credito: $("#credito").value.trim(),
     };
     const { id } = await api("/api/projetos", "POST", { entrada: $("#entrada").value.trim(), opcoes });
@@ -227,7 +244,8 @@ async function atualizarProjeto() {
   const erro = $("#p-erro");
   erro.classList.toggle("escondido", d.estado !== "erro");
   erro.textContent = d.erro || "";
-  $("#p-retomar").classList.toggle("escondido", d.estado !== "erro");
+  $("#p-retomar").classList.toggle("escondido", !["erro", "cancelado"].includes(d.estado));
+  $("#p-cancelar").classList.toggle("escondido", !["rodando", "na fila"].includes(d.estado));
 
   // Só redesenha os clipes quando algo mudou, pra não parar o vídeo que está tocando.
   const assinatura = JSON.stringify([d.clipes, (d.candidatos || []).map((c) => [c.id, c.nota, c.escolhido, c.inicio, c.fim])]);
@@ -283,6 +301,16 @@ function desenharClipes(d) {
         inicio: $(".aj-inicio", caixa).value, fim: $(".aj-fim", caixa).value,
       },
     });
+    const sel = $(".sel", el);
+    sel.dataset.id = cl.id;
+    sel.addEventListener("change", () => { sel.closest(".clipe").classList.toggle("marcado", sel.checked); contarSelecao(); });
+    $(".omniclip", el).onclick = async () => {
+      // O OmniClip roda no navegador e não envia o vídeo: abre o editor e
+      // mostra o arquivo no Explorer pra arrastar pra dentro dele.
+      window.open(OMNICLIP, "_blank", "noopener");
+      try { await api(`/api/projetos/${projetoAtual}/mostrar-arquivo`, "POST", { nome: cl.video }); } catch {}
+      avisar("Arraste o .mp4 que apareceu no Explorer pra dentro do OmniClip. Ele precisa do Chrome ou do Edge.");
+    };
     $(".apagar", el).onclick = async () => {
       if (!confirm("Apagar este clipe? O arquivo some da pasta.")) return;
       await api(`/api/projetos/${projetoAtual}/clipes/${cl.id}`, "DELETE");
@@ -296,15 +324,17 @@ function desenharClipes(d) {
     .sort((a, b) => b.nota - a.nota);
   $("#p-desc-box").classList.toggle("escondido", !desc.length);
   const op = d.opcoes || {}, cc = estado?.config?.corte || {};
-  const minima = Number(op.nota_minima ?? cc.nota_minima ?? 6), extra = Number(cc.ajuste_local ?? 1);
-  $("#p-regua").textContent = desc.some((c) => c.avaliado_por === "ollama")
-    ? `nota mínima ${(minima + extra).toFixed(1)} (${minima} + ${extra} da IA local)` : `nota mínima ${minima}`;
+  const minima = Number(op.nota_minima ?? cc.nota_minima ?? 6);
+  $("#p-regua").textContent = `nota mínima ${minima}`;
   const lista = $("#p-descartados");
   lista.innerHTML = "";
   for (const c of desc) {
     const linha = document.createElement("div");
     linha.className = "descartado";
-    linha.innerHTML = `<span class="nota-contorno"></span><span class="texto"><b></b><small></small></span><span class="tempo"></span><button>Cortar assim mesmo</button>`;
+    linha.innerHTML = `<input type="checkbox" class="sel" aria-label="Selecionar este trecho"><span class="nota-contorno"></span><span class="texto"><b></b><small></small></span><span class="tempo"></span><button>Cortar assim mesmo</button>`;
+    const sel = $(".sel", linha);
+    sel.dataset.id = c.id;
+    sel.addEventListener("change", () => { linha.classList.toggle("marcado", sel.checked); contarSelecao(); });
     $(".nota-contorno", linha).textContent = Number(c.nota ?? 0).toFixed(1);
     $("b", linha).textContent = c.titulo || `Trecho ${c.id}`;
     $("small", linha).textContent = c.motivo || "";
@@ -313,7 +343,67 @@ function desenharClipes(d) {
     $("button", linha).onclick = () => cortarClipes([c.id]);
     lista.appendChild(linha);
   }
+  $("#p-clipes-barra").classList.toggle("escondido", (d.clipes || []).length < 2);
+  contarSelecao();
 }
+
+// ------------------------------------------------------------------ selecionar vários
+function marcados(caixa) {
+  return $$(`${caixa} .sel:checked`).map((x) => Number(x.dataset.id));
+}
+
+function contarSelecao() {
+  const nd = marcados("#p-descartados").length, totalD = $$("#p-descartados .sel").length;
+  $("#desc-qtd").textContent = nd ? `${nd} de ${totalD} selecionado(s)` : "";
+  $("#desc-aprovar").disabled = !nd;
+  $("#desc-aprovar").textContent = nd > 1 ? `Aprovar e cortar ${nd} trechos` : "Aprovar e cortar selecionados";
+  $("#desc-todos").checked = totalD > 0 && nd === totalD;
+  const nc = marcados("#p-clipes").length, totalC = $$("#p-clipes .sel").length;
+  $("#clipes-qtd").textContent = nc ? `${nc} de ${totalC} selecionado(s)` : "";
+  $("#clipes-descartar").disabled = !nc;
+  $("#clipes-todos").checked = totalC > 0 && nc === totalC;
+}
+
+function marcarTodos(caixa, sim) {
+  for (const x of $$(`${caixa} .sel`)) {
+    x.checked = sim;
+    x.closest(".descartado, .clipe")?.classList.toggle("marcado", sim);
+  }
+  contarSelecao();
+}
+$("#desc-todos").addEventListener("change", (e) => marcarTodos("#p-descartados", e.target.checked));
+$("#clipes-todos").addEventListener("change", (e) => marcarTodos("#p-clipes", e.target.checked));
+
+$("#desc-aprovar").onclick = () => {
+  const ids = marcados("#p-descartados");
+  if (ids.length) cortarClipes(ids);
+};
+
+$("#clipes-descartar").onclick = async () => {
+  const ids = marcados("#p-clipes");
+  if (!ids.length) return;
+  if (!confirm(`Tirar ${ids.length} clipe(s) dos aprovados? Os arquivos .mp4 são apagados e o trecho volta pra lista de descartados (dá pra cortar de novo).`)) return;
+  for (const id of ids) await api(`/api/projetos/${projetoAtual}/clipes/${id}`, "DELETE");
+  assinaturaClipes = "";
+  atualizarProjeto();
+};
+
+// ------------------------------------------------------------------ cancelar e excluir
+$("#p-cancelar").onclick = async () => {
+  await api(`/api/projetos/${projetoAtual}/cancelar`, "POST");
+  avisar("Cancelando... para no próximo passo (pode levar alguns segundos).");
+  atualizarProjeto();
+};
+
+$("#p-excluir").onclick = async () => {
+  const titulo = $("#p-titulo").textContent;
+  if (!confirm(`Excluir o projeto "${titulo}"?\n\nApaga a pasta inteira: clipes, transcrição e tudo. Não dá pra desfazer.`)) return;
+  try {
+    await api(`/api/projetos/${projetoAtual}`, "DELETE");
+    avisar("Projeto excluído.");
+    abrirAba("projetos");
+  } catch (e) { alert(e.message); }
+};
 
 async function cortarClipes(ids, ajustes = {}) {
   try {
@@ -334,16 +424,28 @@ async function carregarProjetos() {
   const lista = await api("/api/projetos");
   const box = $("#lista-projetos");
   box.innerHTML = lista.length ? "" : `<p class="dica">Nenhum projeto ainda. Cole um link na aba Cortar.</p>`;
+  $("#proj-barra").classList.toggle("escondido", !lista.length);
   for (const p of lista) {
-    const el = document.createElement("button");
-    el.className = "projeto-item";
-    el.innerHTML = `<span><b></b><br><small></small></span><small class="qtd"></small>`;
+    const linha = document.createElement("div");
+    linha.className = "projeto-linha";
+    linha.innerHTML = `<input type="checkbox" class="sel" aria-label="Selecionar este projeto"><button class="projeto-item"><span><b></b><br><small></small></span><small class="qtd"></small></button>`;
+    const el = $(".projeto-item", linha);
     $("b", el).textContent = p.titulo;
-    $$("small", el)[0].textContent = (p.criado?.replace("T", " ") || "") + (p.estado !== "pronto" ? ` · ${p.estado}` : "");
+    $$("small", el)[0].textContent = p.criado?.replace("T", " ") || "";
+    if (p.estado !== "pronto") {
+      const tag = document.createElement("span");
+      tag.className = "estado-tag";
+      tag.textContent = p.estado;
+      $("b", el).after(tag);
+    }
     $$("small", el)[1].textContent = `${p.clipes} ${p.clipes === 1 ? "clipe" : "clipes"}`;
     el.onclick = () => abrirProjeto(p.id);
-    box.appendChild(el);
+    const sel = $(".sel", linha);
+    sel.dataset.id = p.id;
+    sel.addEventListener("change", () => { linha.classList.toggle("marcado", sel.checked); contarProjetos(); });
+    box.appendChild(linha);
   }
+  contarProjetos();
 }
 
 // ------------------------------------------------------------------ configurações
@@ -697,4 +799,162 @@ $("#marca-salvar").onclick = async () => {
     $("#marca-salvo").textContent = "Salvo ✓";
     setTimeout(() => ($("#marca-salvo").textContent = ""), 2500);
   } catch (e) { alert(e.message); }
+};
+
+// ------------------------------------------------------------------ layout câmera + jogo
+// Marca no quadro do vídeo onde está a câmera e o jogo (frações 0–1) e
+// desenha a prévia 9:16 do mesmo jeito que o ffmpeg monta (corte.geometria_camera).
+let camAtual = null;  // {canal, camera, img}
+
+function mostrarPainelCamera() {
+  const ativo = $("input[name=layout]:checked").value === "camera";
+  $("#painel-camera").classList.toggle("escondido", !ativo);
+  if (ativo && !camAtual && $("#entrada").value.trim()) carregarQuadro();
+}
+$$("input[name=layout]").forEach((r) => r.addEventListener("change", mostrarPainelCamera));
+$("#entrada").addEventListener("change", () => { camAtual = null; $("#cam-editor").classList.add("escondido"); mostrarPainelCamera(); });
+
+async function carregarQuadro(t) {
+  const entrada = $("#entrada").value.trim();
+  if (!entrada) { $("#cam-msg").textContent = "Cole o link ou o caminho do vídeo primeiro."; return; }
+  $("#cam-msg").textContent = "Pegando um quadro do vídeo...";
+  $("#cam-carregar").disabled = true;
+  try {
+    const r = await api("/api/camera/quadro", "POST", {
+      entrada, t, inicio: $("#trecho-inicio").value.trim(), fim: $("#trecho-fim").value.trim(),
+    });
+    const img = new Image();
+    await new Promise((ok, erro) => { img.onload = ok; img.onerror = erro; img.src = r.imagem; });
+    camAtual = { canal: r.canal, camera: r.camera, img, t: r.t };
+    $("#cam-img").src = r.imagem;
+    $("#cam-topo").value = r.camera.topo;
+    $("#cam-largura").value = r.camera.cam_largura;
+    $("#cam-espaco").value = r.camera.espaco;
+    $("#cam-msg").textContent = r.salvo
+      ? `Usando a posição salva do canal ${r.nome_canal}. Confira se a câmera está no lugar.`
+      : `Canal ${r.nome_canal || "sem nome"}: marque a câmera uma vez e salve.`;
+    $("#cam-editor").classList.remove("escondido");
+    desenharCamera();
+  } catch (e) {
+    $("#cam-msg").textContent = e.message;
+  } finally {
+    $("#cam-carregar").disabled = false;
+  }
+}
+$("#cam-carregar").onclick = () => carregarQuadro();
+$("#cam-outro").onclick = () => carregarQuadro(camAtual ? camAtual.t + 97 : undefined);
+$("#cam-jogo-todo").onclick = () => { if (camAtual) { camAtual.camera.jogo = [0, 0, 1, 1]; desenharCamera(); } };
+
+function posRet(el, [x, y, w, h]) {
+  Object.assign(el.style, { left: `${x * 100}%`, top: `${y * 100}%`, width: `${w * 100}%`, height: `${h * 100}%` });
+}
+
+// Mesma conta de corte.geometria_camera (em pixels de 1080x1920).
+function geometriaCamera(c, aspecto) {
+  const par = (v) => Math.max(2, Math.round(v / 2) * 2);
+  const [, , w, h] = c.cam;
+  let cw = par(1080 * Math.min(1, Math.max(0.3, c.cam_largura)));
+  const prop = (Math.max(h, 0.02) / Math.max(w, 0.02)) / aspecto;
+  const yCam = par(1920 * Math.min(0.5, Math.max(0, c.topo)));
+  let ch = par(cw * prop);
+  const max = 1920 - yCam - 480;
+  if (ch > max) { ch = par(max); cw = par(ch / prop); }
+  const yJogo = par(yCam + ch + 1920 * Math.min(0.2, Math.max(0, c.espaco)));
+  return { cw, ch, xCam: (1080 - cw) / 2, yCam, yJogo, jh: par(1920 - yJogo) };
+}
+
+function desenharCamera() {
+  if (!camAtual) return;
+  const c = camAtual.camera, img = camAtual.img;
+  c.topo = +$("#cam-topo").value; c.cam_largura = +$("#cam-largura").value; c.espaco = +$("#cam-espaco").value;
+  $("#cam-topo-v").textContent = `${Math.round(c.topo * 100)}%`;
+  $("#cam-largura-v").textContent = `${Math.round(c.cam_largura * 100)}%`;
+  $("#cam-espaco-v").textContent = `${(c.espaco * 100).toFixed(1)}%`;
+  posRet($("#ret-cam"), c.cam);
+  posRet($("#ret-jogo"), c.jogo);
+
+  const cv = $("#cam-previa"), ctx = cv.getContext("2d"), k = cv.width / 1080;
+  const W = img.naturalWidth, H = img.naturalHeight, g = geometriaCamera(c, W / H);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  // fundo borrado (cobre a tela toda)
+  ctx.save();
+  ctx.filter = "blur(6px) brightness(0.85)";
+  const esc = Math.max(cv.width / W, cv.height / H);
+  ctx.drawImage(img, (cv.width - W * esc) / 2, (cv.height - H * esc) / 2, W * esc, H * esc);
+  ctx.restore();
+  // câmera
+  const [cx, cy, cw, ch] = c.cam;
+  ctx.drawImage(img, cx * W, cy * H, cw * W, ch * H, g.xCam * k, g.yCam * k, g.cw * k, g.ch * k);
+  // jogo: maior pedaço do centro do retângulo com a proporção da área de baixo
+  const [jx, jy, jw, jh] = c.jogo, asp = 1080 / g.jh;
+  const sw = Math.min(jw * W, jh * H * asp), sh = Math.min(jh * H, jw * W / asp);
+  ctx.drawImage(img, jx * W + (jw * W - sw) / 2, jy * H + (jh * H - sh) / 2, sw, sh, 0, g.yJogo * k, 1080 * k, g.jh * k);
+  // onde o gancho vai ficar
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(cv.width * 0.18, (g.yCam + g.ch) * k - 9, cv.width * 0.64, 18);
+  ctx.fillStyle = "#000"; ctx.font = "bold 10px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("GANCHO DO CLIPE", cv.width / 2, (g.yCam + g.ch) * k);
+}
+["#cam-topo", "#cam-largura", "#cam-espaco"].forEach((id) => $(id).addEventListener("input", desenharCamera));
+
+// Arrastar (miolo) e redimensionar (alça do canto) os retângulos.
+for (const el of [$("#ret-cam"), $("#ret-jogo")]) {
+  el.addEventListener("pointerdown", (e) => {
+    if (!camAtual) return;
+    e.preventDefault();
+    e.stopPropagation();
+    el.setPointerCapture(e.pointerId);
+    const palco = $("#cam-palco").getBoundingClientRect();
+    const r = camAtual.camera[el.dataset.chave];
+    const [x0, y0, w0, h0] = r;
+    const mx0 = e.clientX, my0 = e.clientY;
+    const redimensionar = e.target.classList.contains("alca");
+    const mover = (ev) => {
+      const dx = (ev.clientX - mx0) / palco.width, dy = (ev.clientY - my0) / palco.height;
+      if (redimensionar) {
+        r[2] = Math.min(1 - x0, Math.max(0.03, w0 + dx));
+        r[3] = Math.min(1 - y0, Math.max(0.03, h0 + dy));
+      } else {
+        r[0] = Math.min(1 - w0, Math.max(0, x0 + dx));
+        r[1] = Math.min(1 - h0, Math.max(0, y0 + dy));
+      }
+      r.forEach((v, i) => (r[i] = Math.round(v * 1000) / 1000));
+      desenharCamera();
+    };
+    el.addEventListener("pointermove", mover);
+    el.addEventListener("pointerup", () => el.removeEventListener("pointermove", mover), { once: true });
+  });
+}
+
+$("#cam-salvar").onclick = async () => {
+  if (!camAtual) return;
+  try {
+    const r = await api("/api/camera/salvar", "POST", { canal: camAtual.canal, camera: camAtual.camera });
+    $("#cam-salvo").textContent = `Salvo pro canal ${r.canal} ✓`;
+    setTimeout(() => ($("#cam-salvo").textContent = ""), 3000);
+  } catch (e) { alert(e.message); }
+};
+
+function contarProjetos() {
+  const todos = $$("#lista-projetos .sel"), sel = todos.filter((x) => x.checked);
+  $("#proj-qtd").textContent = sel.length ? `${sel.length} de ${todos.length} selecionado(s)` : "";
+  $("#proj-excluir").disabled = !sel.length;
+  $("#proj-todos").checked = todos.length > 0 && sel.length === todos.length;
+}
+$("#proj-todos").addEventListener("change", (e) => {
+  for (const x of $$("#lista-projetos .sel")) {
+    x.checked = e.target.checked;
+    x.closest(".projeto-linha").classList.toggle("marcado", x.checked);
+  }
+  contarProjetos();
+});
+$("#proj-excluir").onclick = async () => {
+  const ids = $$("#lista-projetos .sel:checked").map((x) => x.dataset.id);
+  if (!ids.length) return;
+  if (!confirm(`Excluir ${ids.length} projeto(s)?\n\nApaga as pastas inteiras: clipes, transcrição e tudo. Não dá pra desfazer. Projeto que estiver rodando é cancelado antes.`)) return;
+  try {
+    const r = await api("/api/projetos/excluir", "POST", { ids });
+    avisar(`${r.excluidos} projeto(s) excluído(s).`);
+  } catch (e) { alert(e.message); }
+  carregarProjetos();
 };

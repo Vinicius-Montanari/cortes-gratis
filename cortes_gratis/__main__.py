@@ -96,7 +96,7 @@ def main() -> None:
     ap.add_argument("--idioma", help="pt, en, es... (vazio = detecta sozinho)")
     ap.add_argument("--inicio", help="analisa só a partir daqui, ex.: 1:00:00")
     ap.add_argument("--fim", help="analisa só até aqui, ex.: 1:30:00")
-    ap.add_argument("--layout", choices=["desfocado", "quadrado", "centro"])
+    ap.add_argument("--layout", choices=["desfocado", "quadrado", "centro", "camera"])
     ap.add_argument("--nota-minima", type=float)
     ap.add_argument("--porta", type=int, default=8765)
     ap.add_argument("--sem-navegador", action="store_true")

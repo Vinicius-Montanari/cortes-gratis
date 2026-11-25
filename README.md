@@ -15,8 +15,9 @@ Windows (testado) · Linux e Mac pelo terminal · Licença MIT
   - legenda queimada, palavra falada em amarelo;
   - gancho no topo escrito pela IA;
   - `.txt` com título, legenda do post, hashtags, crédito e link do trecho original.
+- Botão **Editar no OmniClip** em cada clipe: abre o [OmniClip](https://github.com/omni-media/omniclip) (editor grátis que roda no navegador, sem enviar o vídeo) e mostra o arquivo pra arrastar.
 - Mostra os trechos que a IA **descartou**, com nota e motivo, pra cortar mesmo assim se você discordar.
-- Três layouts (`desfocado`, `quadrado`, `centro`), sua **marca** (logo e @ arrastáveis na tela, com aviso de onde os botões do TikTok/Reels/Shorts cobrem) e tema claro/escuro.
+- Quatro layouts (`desfocado`, `quadrado`, `centro` e **câmera + jogo**: você marca no quadro da live onde está a câmera do streamer, ela vai pra cima e o centro do jogo embaixo, com espaço no topo ajustável e salvo por canal), sua **marca** (logo e @ arrastáveis na tela, com aviso de onde os botões do TikTok/Reels/Shorts cobrem) e tema claro/escuro.
 
 ## 2. Como funciona
 
