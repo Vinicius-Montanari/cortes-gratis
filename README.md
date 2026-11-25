@@ -2,7 +2,7 @@
 
 **Cola o link de uma live gravada e recebe os melhores momentos já cortados em 9:16, com legenda palavra por palavra, gancho e texto pro post.**
 
-> **Projeto de estudo de LLMs locais.** A pergunta era: dá pra um modelo pequeno, rodando numa placa de vídeo comum (RTX 2060/3080), fazer um trabalho de "editor de cortes" sem depender de API paga? Este repositório é o resultado e o que aprendi no caminho ([seção 5](#5-o-que-aprendi-com-as-llms-locais)). Funciona de verdade, mas não é produto: é laboratório.
+> **Projeto de estudo de LLMs locais.** A pergunta era: dá pra um modelo pequeno, rodando numa placa de vídeo comum (RTX 2060/3080), fazer um trabalho de "editor de cortes" sem depender de API paga? Funciona de verdade, mas não é produto: é laboratório.
 
 Windows (testado) · Linux e Mac pelo terminal · Licença MIT
 
@@ -69,22 +69,7 @@ Os dois nunca ficam na placa ao mesmo tempo (o programa descarrega um antes de c
 
 **Chaves de nuvem (opcional):** [Groq](https://console.groq.com/keys) e [Gemini](https://aistudio.google.com/app/apikey), cole em **Configurações** e clique em **Testar**.
 
-## 5. O que aprendi com as LLMs locais
-
-Testado numa VOD da Kick (12 min de GTA RP), com `qwen2.5:7b` e `qwen3-vl:4b`:
-
-- **Modelo pequeno é bonzinho demais.** Na primeira versão, de 6 clipes aprovados só 1 era bom. A IA dava 7–8 pra conversa comum.
-- **Lista de verificação antes da nota funcionou mais que "seja exigente".** O prompt pede primeiro *o que acontece*, *se entende sozinho*, *se tem reação forte*, *se tem fecho* (sim/não), e só depois a nota. O código usa essas respostas pra limitar a nota (sem reação forte: no máximo 6). Pedir sim/não é muito mais confiável num 7B do que pedir uma nota calibrada.
-- **Um trecho por pergunta.** Em lote, o 7B misturava os trechos e copiava o `id` do exemplo. Na nuvem (70B) dá pra mandar 4 de uma vez.
-- **Filtrar antes da IA vale mais que um prompt melhor.** Descartar trechos com pouca fala (< 0,45 palavra/s) tirou os "1 minuto dirigindo calado" que o modelo aprovava.
-- **Régua mais alta pra IA local:** nota mínima +1 quando quem julga é o modelo local (ajustável).
-- **Visão resolve o que o texto não vê.** O modelo de texto chamou de "susto" uma cena na loja de armas ("oh meu deus" olhando preços). O `qwen3-vl:4b` reconheceu a loja e derrubou a nota de 8 pra 3. O `gemma3:4b` também viu a loja, mas concorda com qualquer título.
-- **Modelo de visão copia o exemplo do prompt.** Pedir JSON com texto de exemplo fazia ele devolver o próprio exemplo. Solução: exemplo com `"..."` e detectar cópia.
-- **Contexto:** a Qwen3-VL estourou o contexto padrão com 4 imagens; precisa de `num_ctx` 8192.
-
-Resultado final na mesma VOD: **de 6 clipes (1 bom) pra 1 clipe (o bom)**. Perde em quantidade, mas o que sai pode ir pro ar.
-
-## 6. Privacidade
+## 5. Privacidade
 
 | O quê | Pra onde |
 |---|---|
@@ -97,7 +82,7 @@ Resultado final na mesma VOD: **de 6 clipes (1 bom) pra 1 clipe (o bom)**. Perde
 
 **Clipe dos outros:** prefira canais que liberam corte, dê crédito (o programa já põe o @ do streamer) e não poste de quem pede pra tirar.
 
-## 7. Problemas comuns
+## 6. Problemas comuns
 
 | Problema | O que fazer |
 |---|---|
@@ -109,7 +94,7 @@ Resultado final na mesma VOD: **de 6 clipes (1 bom) pra 1 clipe (o bom)**. Perde
 
 O registro de cada corte fica em **Ver registro** e em `dados\projetos\<projeto>\projeto.json`.
 
-## 8. Código
+## 7. Código
 
 ```
 cortes_gratis/
