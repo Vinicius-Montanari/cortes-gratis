@@ -18,45 +18,58 @@ from .cliente import Cadeia
 POR_PERGUNTA_NUVEM = 4
 POR_PERGUNTA_LOCAL = 1
 
-SISTEMA = """Você é editor de cortes de live para TikTok, Reels e Shorts.
-Recebe trechos candidatos de um vídeo longo, cada um com as falas numeradas
-e o tempo. Sua tarefa é ser exigente e descartar o que não prende.
+SISTEMA = """Você é um editor EXIGENTE de cortes de live para TikTok, Reels e Shorts.
+Recebe trechos de um vídeo longo, com as falas numeradas, o tempo e [ALTO]
+quando o volume estourou. Você só tem o texto, sem imagem.
 
-Primeiro escolha onde o clipe começa e termina (linha_inicio e linha_fim).
-Depois dê a nota DO CLIPE JÁ RECORTADO, não do trecho inteiro: se dentro do
-trecho tem um momento forte cercado de conversa morna, recorte só o momento
-e dê a nota dele.
+A maioria dos trechos que você recebe é mediana. De cada 4, normalmente só 1
+merece virar clipe. Na dúvida, nota baixa: um clipe ruim postado é pior que
+nenhum.
 
-Você só tem o texto, sem imagem. Em live, a fala É o sinal: susto ("oh my
-god", "não acredito", "corre"), risada, palavrão, comemoração ("let's go",
-"vamos!") e frases repetidas de nervoso mostram que algo grande aconteceu.
+Para CADA trecho, siga estes passos na ordem:
 
-Dê nota de 0 a 10 pensando em alguém rolando o feed que NUNCA viu essa live:
-- 8 a 10: reação forte e clara (susto, raiva, risada, vitória, falha
-  engraçada), história com começo, meio e fim, frase forte, briga, surpresa.
-- 5 a 7: bom mas depende um pouco de contexto, ou a graça está mais na imagem.
-- 0 a 4: conversa morna, leitura de doação ou de chat, propaganda, problema
-  técnico, "vou ali", menu e loading, meio de explicação sem fecho, ou trecho
-  que não se entende sozinho.
-Não invente o que não está nas falas.
+1. o_que_acontece: em uma frase concreta, o que acontece nas falas.
+   Ex.: "Ele consegue o código do cofre e comemora gritando".
+   Se não dá pra saber o que acontece, escreva "não dá pra entender".
+2. linha_inicio e linha_fim: onde o clipe começa e termina (números entre
+   colchetes). Comece na primeira fala que dá vontade de ver o resto (nunca
+   em "então", "é...", "bom"). Termine logo depois da reação ou da conclusão.
+   Falas marcadas (fora) só se melhorarem. Entre {dur_min} e {dur_max} segundos.
+3. Responda com true ou false, só sobre o pedaço recortado:
+   - se_entende_sozinho: alguém que nunca viu a live entende o que rolou?
+   - tem_reacao_forte: tem susto, risada, raiva, comemoração ou frase de
+     impacto clara NAS FALAS? (conversa normal, explicar o jogo, ler o chat,
+     agradecer doação, "vamos lá" = false)
+   - tem_fecho: termina com uma reação, piada ou conclusão (não corta no meio)?
+4. nota de 0 a 10:
+   - 8 a 10: reação forte e clara + se entende sozinho + tem fecho.
+   - 6 a 7: bom, mas falta uma dessas coisas.
+   - 0 a 5: conversa morna, explicação, leitura de chat/doação, propaganda,
+     problema técnico, "vou ali", ou não se entende sozinho.
+5. motivo: uma linha dizendo por que deu essa nota.
 
-Regras do recorte (pelos números entre colchetes):
-- começa no gancho: a primeira fala que dá vontade de ver o resto. Nunca
-  começa em "então", "é...", "bom", nem no meio de assunto.
-- termina depois do fecho (a reação, a risada ou a conclusão).
-- falas marcadas (fora) estão fora do trecho original; use só se melhorar.
-- o clipe precisa ficar entre {dur_min} e {dur_max} segundos.
+Cuidados:
+- A transcrição é automática e erra. Palavra sem sentido (ex.: "DGELET") é
+  erro: não use em título nem gancho e não conte como reação.
+- Em jogo, falas dos personagens (NPC) aparecem misturadas com as do streamer.
+  Só a reação DO STREAMER conta como reação.
+- Não invente o que não está nas falas.
 
 Escreva título, gancho e legenda NO IDIOMA DO VÍDEO ({idioma}):
-- titulo: até 8 palavras, diz o que acontece, sem prometer o que não tem.
-- gancho: até 6 palavras, em MAIÚSCULAS, vai fixo no topo do vídeo.
+- titulo: até 8 palavras, diz o que acontece. Bom: "Achou o código do cofre
+  no último segundo". Ruim: "Problema com polícia", "Conversa sobre jogo".
+- gancho: até 6 palavras, MAIÚSCULAS, fixo no topo do vídeo. Tem que dar
+  curiosidade sobre ESTE trecho. Bom: "ELE NÃO ESPERAVA ESSE CÓDIGO",
+  "A BOMBA NÃO FUNCIONOU". Ruim: "PROBLEMA!", "VAMOS LÁ!", "CONVERSANDO",
+  "BOMBA!" (genérico demais).
 - legenda_post: 1 ou 2 frases curtas pro post.
 - hashtags: 3 a 5, do jogo ou tema + #cortes ou #clips. Nada enganoso.
 
-Responda só com JSON, um item por trecho recebido, usando o id de cada trecho:
-{{"avaliacoes": [{{"id": <id do trecho>, "linha_inicio": <n>, "linha_fim": <n>,
-  "nota": <0 a 10>, "motivo": "uma linha", "titulo": "...", "gancho": "...",
-  "legenda_post": "...", "hashtags": ["#..."]}}]}}"""
+Responda só com JSON, um item por trecho, usando o id de cada trecho:
+{{"avaliacoes": [{{"id": <id>, "o_que_acontece": "...", "linha_inicio": <n>,
+  "linha_fim": <n>, "se_entende_sozinho": <true/false>, "tem_reacao_forte": <true/false>,
+  "tem_fecho": <true/false>, "nota": <0 a 10>, "motivo": "...", "titulo": "...",
+  "gancho": "...", "legenda_post": "...", "hashtags": ["#..."]}}]}}"""
 
 
 def _bloco(c: dict, linhas: list[dict], db: list[float], desl: float) -> str:
@@ -101,6 +114,7 @@ def avaliar(cands: list[dict], frases: list[dict], energia: dict, fonte: dict,
                    + "\n\n".join(_bloco(c, linhas_de[c["id"]], db, desl) for c in grupo))
         resposta = cadeia.pedir_json(sistema, usuario)
         for c, a in zip(grupo, _casar(resposta, grupo)):
+            c["avaliado_por"] = cadeia.ultimo
             if not a:
                 c.update(nota=0, motivo="a IA não avaliou este trecho")
                 continue
@@ -135,12 +149,48 @@ def _casar(resposta, grupo: list[dict]) -> list[dict | None]:
     return [por_id.get(i) for i in ids]
 
 
+def _sim(valor) -> bool | None:
+    """true/false da IA, que às vezes vem como texto ("true", "sim")."""
+    if isinstance(valor, bool):
+        return valor
+    if valor is None:
+        return None
+    return str(valor).strip().lower() in ("true", "sim", "yes", "1")
+
+
+def _limitar(nota: float, a: dict) -> tuple[float, list[str]]:
+    """Modelo pequeno dá nota alta pra tudo. A lista de verificação que ele
+    mesmo preencheu segura a nota: sem reação forte, no máximo 6; não se
+    entende sozinho, no máximo 5; sem fecho, perde 1."""
+    porque = []
+    if _sim(a.get("tem_reacao_forte")) is False and nota > 6:
+        nota = 6.0
+        porque.append("sem reação forte")
+    if _sim(a.get("se_entende_sozinho")) is False and nota > 5:
+        nota = 5.0
+        porque.append("não se entende sozinho")
+    if _sim(a.get("tem_fecho")) is False:
+        nota -= 1
+        porque.append("sem fecho")
+    o_que = str(a.get("o_que_acontece", "")).lower()
+    if "não dá pra entender" in o_que or "nao da pra entender" in o_que:
+        nota = min(nota, 3.0)
+        porque.append("a IA não entendeu o que acontece")
+    return max(0.0, nota), porque
+
+
 def _aplicar(c: dict, a: dict, linhas: list[dict], cc: dict) -> None:
     try:
-        c["nota"] = max(0.0, min(10.0, float(a.get("nota", 0))))
+        nota = max(0.0, min(10.0, float(a.get("nota", 0))))
     except (TypeError, ValueError):
-        c["nota"] = 0.0
-    c["motivo"] = str(a.get("motivo", ""))[:200]
+        nota = 0.0
+    c["nota_ia"] = nota
+    c["nota"], porque = _limitar(nota, a)
+    c["o_que_acontece"] = str(a.get("o_que_acontece", "")).strip()[:200]
+    motivo = str(a.get("motivo", "")).strip()[:200]
+    if porque:
+        motivo += f" (nota limitada: {', '.join(porque)})"
+    c["motivo"] = motivo
     c["titulo"] = str(a.get("titulo", "")).strip()[:80] or f"Clipe {c['id']}"
     c["gancho"] = str(a.get("gancho", "")).strip().upper()[:50]
     c["legenda_post"] = str(a.get("legenda_post", "")).strip()[:300]
@@ -161,11 +211,22 @@ def _aplicar(c: dict, a: dict, linhas: list[dict], cc: dict) -> None:
             c["inicio"], c["fim"] = round(ini, 2), round(min(fim, ini + cc["dur_max"]), 2)
 
 
+def minima_de(c: dict, cfg: dict) -> float:
+    """Nota mínima pra esse trecho virar clipe. Se quem julgou foi a IA local
+    (modelo pequeno, mais boazinha), a régua sobe um pouco."""
+    cc = cfg["corte"]
+    extra = cc.get("ajuste_local", 1.0) if c.get("avaliado_por") == "ollama" else 0.0
+    return cc["nota_minima"] + extra
+
+
+def passou(c: dict, cfg: dict) -> bool:
+    return c.get("nota", 0) >= minima_de(c, cfg)
+
+
 def escolher(cands: list[dict], cfg: dict) -> list[dict]:
     """Fica com os melhores acima da nota mínima, sem sobrepor, em ordem de tempo."""
     cc = cfg["corte"]
-    bons = sorted((c for c in cands if c.get("nota", 0) >= cc["nota_minima"]),
-                  key=lambda c: -c["nota"])
+    bons = sorted((c for c in cands if passou(c, cfg)), key=lambda c: -c["nota"])
     final: list[dict] = []
     for c in bons:
         if len(final) >= cc["max_clipes"]:

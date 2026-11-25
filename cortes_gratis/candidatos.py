@@ -122,6 +122,15 @@ def _ajustar_ao_texto(ini: float, fim: float, frases: list[dict], inicios: list[
     return round(ini, 2), round(fim, 2)
 
 
+# Fala corrida tem 2 a 3 palavras por segundo; em live de jogo, trecho bom
+# costuma ter de 0,5 a 1,7. Calibrado numa VOD de GTA: os trechos de um minuto
+# com uma frase só ("O que é isso?") davam 0,07; o melhor momento dava 0,69.
+FALA_MINIMA = 0.45
+FRASES_MINIMAS = 2
+# Quanto o volume precisa passar do normal da live pra salvar um trecho com pouca fala.
+ESTOURO_DB = 15.0
+
+
 def achar(frases: list[dict], energia: dict, quantos: int = 24,
           dur_min: float = 20, dur_max: float = 60) -> list[dict]:
     """Devolve até `quantos` trechos candidatos, sem sobreposição, em ordem de tempo."""
@@ -135,15 +144,18 @@ def achar(frases: list[dict], energia: dict, quantos: int = 24,
     inicios = [f["i"] for f in frases]
 
     usados: list[tuple[float, float]] = []
+    pulados: list[tuple[float, float]] = []  # trechos já descartados por pouca fala
     saida: list[dict] = []
     ordem = np.argsort(-nota)
     alvo = (dur_min + dur_max) / 2  # duração ideal, ~40 s
+    tempos_palavras = sorted(w["i"] for f in frases for w in f.get("palavras", []))
+    volume_tipico = float(np.median(db)) if db else -60.0
 
     for s in ordem:
         if len(saida) >= quantos or nota[s] <= 0.3:
             break
         pico = desl + float(s)
-        if any(a - 3 <= pico <= b + 3 for a, b in usados):
+        if any(a - 3 <= pico <= b + 3 for a, b in usados + pulados):
             continue
         # O que prende costuma ser a preparação + a reação: pega um pouco mais
         # antes do pico. A IA ainda pode encurtar o começo depois.
@@ -155,14 +167,27 @@ def achar(frases: list[dict], energia: dict, quantos: int = 24,
             continue
         if any(not (fim <= a - 1 or ini >= b + 1) for a, b in usados):
             continue
-        usados.append((ini, fim))
         a, b = int(ini - desl), int(fim - desl)
+        volume_max = float(max(db[a:b] or [-60]))
+        n_palavras = (bisect.bisect_left(tempos_palavras, fim)
+                      - bisect.bisect_left(tempos_palavras, ini))
+        fala_por_s = n_palavras / max(fim - ini, 1.0)
+        n_frases = (bisect.bisect_left(inicios, fim) - bisect.bisect_left(inicios, ini))
+        # Pouca fala = quase sempre jogo rolando sem nada acontecendo (testado
+        # numa VOD de GTA: 60 s dirigindo com uma frase só passaram como clipe).
+        # Exceção: um estouro de volume bem acima do normal (explosão, grito).
+        pouca_fala = fala_por_s < FALA_MINIMA or n_frases < FRASES_MINIMAS
+        if pouca_fala and volume_max - volume_tipico < ESTOURO_DB:
+            pulados.append((ini, fim))
+            continue
+        usados.append((ini, fim))
         saida.append({
             "inicio": ini,
             "fim": fim,
             "pico": round(pico, 1),
             "pontos": round(float(nota[s]), 2),
-            "volume_max": round(float(max(db[a:b] or [-60])), 1),
+            "volume_max": round(volume_max, 1),
+            "fala_por_s": round(fala_por_s, 2),
         })
 
     saida.sort(key=lambda c: c["inicio"])

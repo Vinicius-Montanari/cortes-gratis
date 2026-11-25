@@ -247,6 +247,7 @@ function preencherConfig() {
   $("#n-candidatos").value = c.corte.candidatos;
   $("#dur-min").value = c.corte.dur_min;
   $("#dur-max").value = c.corte.dur_max;
+  $("#ajuste-local").value = c.corte.ajuste_local;
   $("#maiuscula").checked = c.corte.legenda_maiuscula;
   $("#mostrar-gancho").checked = c.corte.mostrar_gancho;
   $("#mostrar-credito").checked = c.corte.mostrar_credito;
@@ -331,6 +332,7 @@ async function salvarConfig() {
   Object.assign(c.corte, {
     max_clipes: +$("#max-clipes").value, candidatos: +$("#n-candidatos").value,
     dur_min: +$("#dur-min").value, dur_max: +$("#dur-max").value,
+    ajuste_local: +$("#ajuste-local").value,
     legenda_maiuscula: $("#maiuscula").checked, mostrar_gancho: $("#mostrar-gancho").checked,
     mostrar_credito: $("#mostrar-credito").checked,
   });

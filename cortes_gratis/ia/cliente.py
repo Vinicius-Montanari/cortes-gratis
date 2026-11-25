@@ -136,6 +136,7 @@ class Cadeia:
         self._prontos: set[str] = set()
         self._fora: set[str] = set()
         self.usadas: dict[str, int] = {}
+        self.ultimo = ""
 
     def proximo(self) -> Provedor | None:
         """A IA que vai ser usada no próximo pedido (se nada falhar)."""
@@ -161,6 +162,7 @@ class Cadeia:
                     resposta = p.conversar(sistema, usuario)
                     dados = extrair_json(resposta)
                     self.usadas[p.rotulo] = self.usadas.get(p.rotulo, 0) + 1
+                    self.ultimo = p.nome  # quem respondeu (a régua da IA local é outra)
                     return dados
                 except ErroCota as e:
                     # Limite por minuto: espera um pouco e tenta de novo.

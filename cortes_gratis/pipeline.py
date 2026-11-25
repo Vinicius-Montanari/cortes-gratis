@@ -145,9 +145,9 @@ def rodar(p: Projeto) -> None:
 
         # 3b. Conferência pela imagem (só nos que passaram pela fala)
         if cfg["visao"].get("ativo"):
-            antes = sum(c.get("nota", 0) >= cc["nota_minima"] for c in cands)
+            antes = sum(avaliar.passou(c, cfg) for c in cands)
             visao.conferir(cands, fonte, cfg, p.log, p.progresso("visao"))
-            depois = sum(c.get("nota", 0) >= cc["nota_minima"] for c in cands)
+            depois = sum(avaliar.passou(c, cfg) for c in cands)
             if antes != depois:
                 p.log(f"A imagem derrubou {antes - depois} trecho(s) que tinham passado pela fala")
             p.dados["candidatos"] = cands
@@ -155,7 +155,8 @@ def rodar(p: Projeto) -> None:
         for c in cands:
             c["escolhido"] = c in escolhidos
         p.log(f"{len(escolhidos)} de {len(cands)} trechos aprovados pela IA "
-              f"(nota mínima {cc['nota_minima']})")
+              f"(nota mínima {cc['nota_minima']}; "
+              f"{cc['nota_minima'] + cc.get('ajuste_local', 1)} quando quem julga é a IA local)")
         if not escolhidos:
             p.dados["estado"] = "pronto"
             p.log("Nenhum trecho passou da nota mínima. Baixe a nota mínima ou "

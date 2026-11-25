@@ -75,6 +75,7 @@ PADRAO: dict = {
     },
     "corte": {
         "nota_minima": 6,       # clipes com nota menor são descartados
+        "ajuste_local": 1,      # a IA local é mais boazinha: exige 1 ponto a mais dela
         "max_clipes": 8,
         "candidatos": 24,       # quantos trechos a IA avalia
         "dur_min": 20,

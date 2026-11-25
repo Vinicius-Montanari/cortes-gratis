@@ -172,8 +172,8 @@ def combinar(c: dict, v: dict, peso: float) -> None:
 def conferir(cands: list[dict], fonte: dict, cfg: dict, aviso: Callable[[str], None],
              progresso: Callable[[float, str], None]) -> list[dict]:
     """Confere a imagem de todo trecho que passou na nota mínima pela fala."""
-    minima = cfg["corte"]["nota_minima"]
-    alvo = [c for c in cands if c.get("nota", 0) >= minima and "visao" not in c]
+    from .avaliar import passou
+    alvo = [c for c in cands if passou(c, cfg) and "visao" not in c]
     if not alvo:
         return cands
     v = Visao(cfg, aviso)

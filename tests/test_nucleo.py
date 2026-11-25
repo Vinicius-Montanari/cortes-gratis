@@ -198,3 +198,36 @@ def test_visao_reprova_menu_e_mistura_nota():
     visao.combinar(c, {"tipo": "gameplay_acao", "nota_visual": "lixo",
                        "imagem_combina_com_titulo": True}, 0.5)
     assert c["nota"] == pytest.approx(6.0)  # nota visual inválida vira 5
+
+
+def test_lista_de_verificacao_segura_nota():
+    lim = avaliar._limitar
+    assert lim(8.0, {"tem_reacao_forte": False})[0] == 6.0
+    assert lim(8.0, {"se_entende_sozinho": "false"})[0] == 5.0
+    assert lim(8.0, {"tem_reacao_forte": True, "se_entende_sozinho": True, "tem_fecho": False})[0] == 7.0
+    assert lim(9.0, {"o_que_acontece": "Não dá pra entender"})[0] == 3.0
+    # sem a lista (IA que não preencheu), a nota fica como veio
+    assert lim(8.0, {})[0] == 8.0
+
+
+def test_regua_maior_pra_ia_local():
+    cfg = config.carregar()
+    cfg["corte"].update(nota_minima=6, ajuste_local=1)
+    assert avaliar.passou({"nota": 6.5, "avaliado_por": "groq"}, cfg)
+    assert not avaliar.passou({"nota": 6.5, "avaliado_por": "ollama"}, cfg)
+    assert avaliar.passou({"nota": 7.0, "avaliado_por": "ollama"}, cfg)
+
+
+def test_trecho_com_pouca_fala_cai():
+    # 10 min de jogo: só uma fala solta aos 300 s, mas um pico de volume moderado ali
+    frases = [{"i": 300.0, "f": 301.0, "texto": "o que é isso?",
+               "palavras": [{"i": 300.0, "f": 300.3, "p": "o"}, {"i": 300.3, "f": 300.6, "p": "que"},
+                            {"i": 300.6, "f": 300.8, "p": "é"}, {"i": 300.8, "f": 301.0, "p": "isso?"}]}]
+    db = [-30.0] * 600
+    for s in range(298, 305):
+        db[s] = -22.0  # 8 dB acima do normal: não é estouro
+    assert candidatos.achar(frases, {"deslocamento": 0, "db": db}, quantos=5) == []
+    # com um estouro de verdade (explosão), o trecho sem fala é aceito
+    for s in range(298, 305):
+        db[s] = -8.0
+    assert candidatos.achar(frases, {"deslocamento": 0, "db": db}, quantos=5)
