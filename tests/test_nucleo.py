@@ -231,3 +231,27 @@ def test_trecho_com_pouca_fala_cai():
     for s in range(298, 305):
         db[s] = -8.0
     assert candidatos.achar(frases, {"deslocamento": 0, "db": db}, quantos=5)
+
+
+def test_marca_entra_na_legenda_e_no_filtro(tmp_path, monkeypatch):
+    from cortes_gratis import config, corte
+    monkeypatch.setattr(config, "PASTA_MARCA", tmp_path)
+    (tmp_path / "logo.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    m = dict(config.PADRAO["marca"], ativo=True, logo="logo.png", texto="corte: @eu",
+             texto_x=0.5, texto_y=0.25, quando="inicio_fim")
+    ativa = corte.marca_ativa(m)
+    assert ativa and ativa["caminho_logo"] == tmp_path / "logo.png"
+    ass = corte.montar_ass([], 0, 30, "", "", True, "desfocado", ativa)
+    linhas = [x for x in ass.splitlines() if "corte: @eu" in x]
+    assert len(linhas) == 2  # começo e fim
+    assert r"\an5\pos(540,480)" in linhas[0]
+    f = corte.filtro_video("desfocado", corte.filtro_logo(2, ativa, 30))
+    assert "[2:v]scale=151:-1" in f and "between(t,26.00,30.00)" in f
+    assert f.endswith("[comlogo]ass=legenda.ass[v]")
+
+
+def test_marca_desligada_ou_vazia_nao_entra():
+    from cortes_gratis import config, corte
+    assert corte.marca_ativa(dict(config.PADRAO["marca"])) is None
+    assert corte.marca_ativa(dict(config.PADRAO["marca"], ativo=True)) is None
+    assert corte.filtro_video("centro").endswith("[base]ass=legenda.ass[v]")

@@ -368,6 +368,7 @@ function preencherConfig() {
   $("#visao-peso").value = c.visao.peso;
   $("#visao-peso-valor").textContent = Math.round(c.visao.peso * 100) + "%";
   desenharIAs(c.ordem_ia.slice());
+  preencherMarca();
 }
 
 $("#visao-peso").addEventListener("input", (e) => ($("#visao-peso-valor").textContent = Math.round(e.target.value * 100) + "%"));
@@ -452,6 +453,7 @@ async function salvarConfig() {
     modelo_local: $("#visao-modelo").value,
     peso: parseFloat($("#visao-peso").value),
   });
+  if (marca) c.marca = { ...marca, logo: c.marca.logo };
   estado.config = await api("/api/config", "POST", c);
   await carregarEstado();
 }
@@ -558,3 +560,141 @@ async function carregarRecentes() {
 
 carregarEstado();
 carregarRecentes();
+
+// ------------------------------------------------------------------ sua marca
+// Áreas que cada app cobre com botões e texto (aproximado, em fração da tela).
+const ZONAS = {
+  tiktok: [[0.83, 0.40, 1, 0.86], [0, 0.80, 0.80, 1], [0.15, 0, 0.85, 0.07]],
+  reels: [[0.84, 0.50, 1, 0.90], [0, 0.81, 0.80, 1], [0, 0, 1, 0.06]],
+  shorts: [[0.82, 0.42, 1, 0.88], [0, 0.78, 0.80, 1], [0, 0, 1, 0.06]],
+};
+const NOME_APP = { tiktok: "TikTok", reels: "Reels", shorts: "Shorts" };
+let marca = null;
+
+function preencherMarca() {
+  if (!estado) return;
+  marca = { ...estado.config.marca };
+  $("#marca-ativo").checked = marca.ativo;
+  $("#marca-texto-campo").value = marca.texto || "";
+  $("#marca-logo-tam").value = marca.logo_tam;
+  $("#marca-texto-tam").value = marca.texto_tam;
+  $("#marca-opacidade").value = marca.opacidade;
+  $("#marca-quando").value = marca.quando;
+  $("#marca-zona").value = marca.zona || "";
+  $("#marca-logo").src = marca.logo ? `/api/marca/logo?v=${Date.now()}` : "";
+  $("#marca-tirar-logo").classList.toggle("escondido", !marca.logo);
+  api("/api/marca/previa").then((r) => {
+    $("#marca-fundo").src = r.url || "";
+    $("#marca-palco").classList.toggle("com-fundo", !!r.url);
+  }).catch(() => {});
+  desenharMarca();
+}
+
+function desenharMarca() {
+  if (!marca) return;
+  const logo = $("#marca-logo"), txt = $("#marca-texto");
+  logo.style.left = `${marca.logo_x * 100}%`;
+  logo.style.top = `${marca.logo_y * 100}%`;
+  logo.style.width = `${marca.logo_tam * 100}%`;
+  logo.style.opacity = marca.opacidade;
+  txt.textContent = marca.texto || "";
+  txt.style.left = `${marca.texto_x * 100}%`;
+  txt.style.top = `${marca.texto_y * 100}%`;
+  txt.style.fontSize = `${(marca.texto_tam / 1080) * 100}cqw`;
+  txt.style.opacity = marca.opacidade;
+  $("#marca-logo-tam-v").textContent = `${Math.round(marca.logo_tam * 100)}%`;
+  $("#marca-texto-tam-v").textContent = `${marca.texto_tam}`;
+  $("#marca-opacidade-v").textContent = `${Math.round(marca.opacidade * 100)}%`;
+
+  const zonas = ZONAS[marca.zona] || [];
+  $("#marca-zonas").innerHTML = zonas.map(([x0, y0, x1, y1]) =>
+    `<span style="left:${x0 * 100}%;top:${y0 * 100}%;width:${(x1 - x0) * 100}%;height:${(y1 - y0) * 100}%"></span>`).join("");
+  // Avisa se algum pedaço da marca cai embaixo dos botões do app.
+  const palco = $("#marca-palco").getBoundingClientRect();
+  const cobertos = [];
+  for (const [el, nome] of [[logo, "O logo"], [txt, "O texto"]]) {
+    const r = el.getBoundingClientRect();
+    if (!r.width || !palco.width) { el.classList.remove("fora"); continue; }
+    const a = [(r.left - palco.left) / palco.width, (r.top - palco.top) / palco.height,
+      (r.right - palco.left) / palco.width, (r.bottom - palco.top) / palco.height];
+    const bate = zonas.some(([x0, y0, x1, y1]) => a[0] < x1 && a[2] > x0 && a[1] < y1 && a[3] > y0);
+    el.classList.toggle("fora", bate);
+    if (bate) cobertos.push(nome);
+  }
+  $("#marca-aviso").textContent = cobertos.length
+    ? `${cobertos.join(" e ")} fica embaixo dos botões do ${NOME_APP[marca.zona]}.` : "";
+}
+
+function arrastar(el, chaveX, chaveY) {
+  el.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    el.setPointerCapture(e.pointerId);
+    const palco = $("#marca-palco").getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+    const mover = (ev) => {
+      let x = (ev.clientX - dx - palco.left) / palco.width;
+      const y = (ev.clientY - dy - palco.top) / palco.height;
+      const noCentro = Math.abs(x - 0.5) < 0.025; // gruda no meio
+      if (noCentro) x = 0.5;
+      $("#marca-guia").classList.toggle("ver", noCentro);
+      marca[chaveX] = Math.round(Math.min(1, Math.max(0, x)) * 1000) / 1000;
+      marca[chaveY] = Math.round(Math.min(1, Math.max(0, y)) * 1000) / 1000;
+      desenharMarca();
+    };
+    const soltar = () => {
+      el.removeEventListener("pointermove", mover);
+      $("#marca-guia").classList.remove("ver");
+    };
+    el.addEventListener("pointermove", mover);
+    el.addEventListener("pointerup", soltar, { once: true });
+    el.addEventListener("pointercancel", soltar, { once: true });
+  });
+}
+arrastar($("#marca-logo"), "logo_x", "logo_y");
+arrastar($("#marca-texto"), "texto_x", "texto_y");
+$("#marca-logo").addEventListener("load", desenharMarca);
+
+for (const [id, chave, conv] of [["#marca-logo-tam", "logo_tam", Number], ["#marca-texto-tam", "texto_tam", Number],
+  ["#marca-opacidade", "opacidade", Number], ["#marca-texto-campo", "texto", String],
+  ["#marca-quando", "quando", String], ["#marca-zona", "zona", String]]) {
+  $(id).addEventListener("input", (e) => { if (marca) { marca[chave] = conv(e.target.value); desenharMarca(); } });
+}
+$("#marca-ativo").addEventListener("change", (e) => { if (marca) marca.ativo = e.target.checked; });
+
+$("#marca-arquivo").addEventListener("change", async (e) => {
+  const arq = e.target.files[0];
+  e.target.value = "";
+  if (!arq) return;
+  if (arq.size > 3 * 1024 * 1024) { alert("Logo grande demais (máximo 3 MB)."); return; }
+  const dados = await new Promise((ok, erro) => {
+    const r = new FileReader();
+    r.onload = () => ok(r.result);
+    r.onerror = erro;
+    r.readAsDataURL(arq);
+  });
+  try {
+    const r = await api("/api/marca/logo", "POST", { dados });
+    marca.logo = estado.config.marca.logo = r.logo;
+    if (!marca.ativo) { marca.ativo = true; $("#marca-ativo").checked = true; }
+    $("#marca-logo").src = `/api/marca/logo?v=${Date.now()}`;
+    $("#marca-tirar-logo").classList.remove("escondido");
+  } catch (err) { alert(err.message); }
+});
+
+$("#marca-tirar-logo").onclick = async () => {
+  await api("/api/marca/logo", "DELETE");
+  marca.logo = estado.config.marca.logo = "";
+  $("#marca-logo").src = "";
+  $("#marca-tirar-logo").classList.add("escondido");
+  desenharMarca();
+};
+
+$("#marca-salvar").onclick = async () => {
+  try {
+    estado.config = await api("/api/config", "POST", { marca });
+    marca = { ...estado.config.marca };
+    $("#marca-salvo").textContent = "Salvo ✓";
+    setTimeout(() => ($("#marca-salvo").textContent = ""), 2500);
+  } catch (e) { alert(e.message); }
+};

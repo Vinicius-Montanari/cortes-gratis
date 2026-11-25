@@ -182,6 +182,7 @@ def cortar(p: Projeto, ids: list[int], cfg: dict | None = None) -> None:
     cfg = cfg or config.carregar()
     op = p.dados.get("opcoes", {})
     opcoes = cfg["corte"] | {k: v for k, v in op.items() if k in cfg["corte"] or k == "credito"}
+    opcoes["marca"] = cfg.get("marca")
     fonte, frases = p.ler("fonte.json"), p.ler("transcricao.json")
     palavras = corte.palavras_de(frases)
     por_id = {c["id"]: c for c in p.dados["candidatos"]}

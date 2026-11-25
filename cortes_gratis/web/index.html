@@ -171,6 +171,7 @@
     <div class="config">
       <nav aria-label="Seções">
         <a href="#c-ias">IAs de texto</a>
+        <a href="#c-marca">Sua marca</a>
         <a href="#c-imagem">Conferir a imagem</a>
         <a href="#cartao-ollama">IA local</a>
         <a href="#c-transcricao">Transcrição</a>
@@ -184,6 +185,70 @@
           <p class="dica">Tenta de cima pra baixo. Quando a cota grátis de uma acaba, passa pra próxima.
             A IA local fica por último: não tem limite, mas é mais lenta e um pouco menos esperta.</p>
           <div id="lista-ias"></div>
+        </div>
+
+        <div class="cartao" id="c-marca">
+          <div class="cabeca-cartao">
+            <h2>Sua marca</h2>
+            <label class="check"><input type="checkbox" id="marca-ativo"> colocar nos cortes</label>
+          </div>
+          <p class="dica">Seu logo e seu @ no vídeo, pra mostrar que o corte é seu. Arraste os dois na tela.
+            O crédito do streamer continua sempre lá.</p>
+          <div class="editor-marca">
+            <div class="palco-box">
+              <div class="palco" id="marca-palco">
+                <img id="marca-fundo" alt="">
+                <div class="fantasma" id="marca-fantasma">
+                  <span class="f-gancho">GANCHO DO CLIPE</span>
+                  <span class="f-legenda">LEGENDA <em>AQUI</em></span>
+                  <span class="f-credito">@streamer</span>
+                </div>
+                <div id="marca-zonas"></div>
+                <span class="guia-centro" id="marca-guia"></span>
+                <img id="marca-logo" class="arrastavel" alt="Seu logo" draggable="false">
+                <span id="marca-texto" class="arrastavel"></span>
+              </div>
+              <label class="zona-escolha">Mostrar por cima
+                <select id="marca-zona">
+                  <option value="tiktok">botões do TikTok</option>
+                  <option value="reels">botões do Reels</option>
+                  <option value="shorts">botões do Shorts</option>
+                  <option value="">nada</option>
+                </select>
+              </label>
+              <p class="aviso-zona" id="marca-aviso"></p>
+            </div>
+            <div class="controles-marca">
+              <div>
+                <span class="rotulo-campo">Logo</span>
+                <div class="acoes">
+                  <label class="botao" for="marca-arquivo" style="flex-direction:row">Escolher imagem</label>
+                  <input type="file" id="marca-arquivo" accept="image/png,image/jpeg,image/webp" class="escondido">
+                  <button id="marca-tirar-logo" class="perigo">Tirar logo</button>
+                </div>
+                <small class="dica">PNG com fundo transparente fica melhor.</small>
+              </div>
+              <label>Seu @ ou frase
+                <input id="marca-texto-campo" maxlength="40" placeholder="corte: @seunome">
+              </label>
+              <label><span class="valor-linha">Tamanho do logo <b id="marca-logo-tam-v"></b></span>
+                <input id="marca-logo-tam" type="range" min="0.06" max="0.4" step="0.01"></label>
+              <label><span class="valor-linha">Tamanho do texto <b id="marca-texto-tam-v"></b></span>
+                <input id="marca-texto-tam" type="range" min="24" max="90" step="2"></label>
+              <label><span class="valor-linha">Opacidade <b id="marca-opacidade-v"></b></span>
+                <input id="marca-opacidade" type="range" min="0.3" max="1" step="0.05"></label>
+              <label>Quando aparece
+                <select id="marca-quando">
+                  <option value="sempre">o clipe todo</option>
+                  <option value="inicio_fim">só 4 s no começo e no fim</option>
+                </select>
+              </label>
+              <div class="salvar-linha">
+                <span id="marca-salvo" class="msg"></span>
+                <button id="marca-salvar" class="primario">Salvar marca</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="par">

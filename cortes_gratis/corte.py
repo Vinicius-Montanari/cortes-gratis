@@ -14,7 +14,7 @@ import unicodedata
 from pathlib import Path
 from typing import Callable
 
-from . import ferramentas
+from . import config, ferramentas
 from .analise import hms
 
 LARGURA, ALTURA = 1080, 1920
@@ -68,8 +68,28 @@ def grupos(palavras: list[dict], max_palavras: int = 3, max_chars: int = 18) -> 
     return saida
 
 
+def janelas_marca(dur: float, quando: str) -> list[tuple[float, float]]:
+    """Quando a marca aparece: o clipe todo, ou só 4 s no começo e no fim."""
+    if quando != "inicio_fim" or dur <= 10:
+        return [(0.0, dur)]
+    return [(0.0, 4.0), (dur - 4.0, dur)]
+
+
+def marca_ativa(marca: dict | None) -> dict | None:
+    """A marca só entra se estiver ligada e tiver logo ou texto."""
+    if not marca or not marca.get("ativo"):
+        return None
+    logo = config.PASTA_MARCA / marca["logo"] if marca.get("logo") else None
+    if logo is not None and not logo.is_file():
+        logo = None
+    texto = str(marca.get("texto") or "").strip()
+    if not logo and not texto:
+        return None
+    return {**marca, "texto": texto, "caminho_logo": logo}
+
+
 def montar_ass(palavras: list[dict], ini: float, fim: float, gancho: str, credito: str,
-               maiusculas: bool, layout: str) -> str:
+               maiusculas: bool, layout: str, marca: dict | None = None) -> str:
     """Gera o arquivo de legenda. `palavras` vêm com o tempo do vídeo original."""
     dur = fim - ini
     margem_legenda = 470 if layout != "centro" else 380
@@ -94,6 +114,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         ev.append(f"Dialogue: 1,{_t(0)},{_t(dur)},Gancho,,0,0,0,,{_esc(gancho)}")
     if credito:
         ev.append(f"Dialogue: 1,{_t(0)},{_t(dur)},Credito,,0,0,0,,{_esc(credito)}")
+    if marca and marca.get("texto"):
+        # Centro do texto na posição escolhida no editor (n5 = âncora no meio).
+        x, y = round(LARGURA * float(marca["texto_x"])), round(ALTURA * float(marca["texto_y"]))
+        tam = int(marca.get("texto_tam") or 44)
+        alfa = f"{round(255 * (1 - float(marca.get('opacidade', 0.9)))):02X}"
+        tags = f"{{\\an5\\pos({x},{y})\\fs{tam}\\alpha&H{alfa}&}}"
+        for a, z in janelas_marca(dur, marca.get("quando", "sempre")):
+            ev.append(f"Dialogue: 2,{_t(a)},{_t(z)},Credito,,0,0,0,,{tags}{_esc(marca['texto'])}")
 
     dentro = [w for w in palavras if w["f"] > ini and w["i"] < fim]
     blocos = grupos(dentro)
@@ -116,18 +144,34 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 # ---------------------------------------------------------------- vídeo
 
-def filtro_video(layout: str) -> str:
-    """Monta o filtro do ffmpeg para cada layout. Saída sempre 1080x1920."""
+def filtro_logo(indice: int, marca: dict, dur: float) -> str:
+    """Logo por cima do vídeo [base] -> [comlogo], com transparência e posição."""
+    larg = max(16, round(LARGURA * float(marca.get("logo_tam", 0.14))))
+    op = max(0.05, min(1.0, float(marca.get("opacidade", 0.9))))
+    x, y = round(LARGURA * float(marca["logo_x"])), round(ALTURA * float(marca["logo_y"]))
+    quando = "+".join(f"between(t,{a:.2f},{z:.2f})"
+                      for a, z in janelas_marca(dur, marca.get("quando", "sempre")))
+    return (f"[{indice}:v]scale={larg}:-1,format=rgba,colorchannelmixer=aa={op:.2f}[logo];"
+            f"[base][logo]overlay={x}-w/2:{y}-h/2:enable='{quando}'[comlogo];")
+
+
+def filtro_video(layout: str, logo: str = "") -> str:
+    """Monta o filtro do ffmpeg para cada layout. Saída sempre 1080x1920.
+    `logo` é o pedaço de filtro_logo (ou vazio, sem logo)."""
     fundo = ("[0:v]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
              "boxblur=20:3,eq=brightness=-0.12,scale=1080:1920,setsar=1[fundo];")
     if layout == "centro":
-        return ("[0:v]scale=1080:1920:force_original_aspect_ratio=increase,"
-                "crop=1080:1920,setsar=1,ass=legenda.ass[v]")
-    if layout == "quadrado":
-        frente = ("[0:v]crop='min(iw,ih)':'min(iw,ih)',scale=1080:1080,setsar=1[frente];")
-    else:  # desfocado
-        frente = "[0:v]scale=1080:-2,setsar=1[frente];"
-    return fundo + frente + "[fundo][frente]overlay=(W-w)/2:(H-h)/2,ass=legenda.ass[v]"
+        base = ("[0:v]scale=1080:1920:force_original_aspect_ratio=increase,"
+                "crop=1080:1920,setsar=1[base];")
+    else:
+        if layout == "quadrado":
+            frente = ("[0:v]crop='min(iw,ih)':'min(iw,ih)',scale=1080:1080,setsar=1[frente];")
+        else:  # desfocado
+            frente = "[0:v]scale=1080:-2,setsar=1[frente];"
+        base = fundo + frente + "[fundo][frente]overlay=(W-w)/2:(H-h)/2[base];"
+    if logo:
+        return base + logo + "[comlogo]ass=legenda.ass[v]"
+    return base + "[base]ass=legenda.ass[v]"
 
 
 def _fontes_ffmpeg_link(link: str) -> list[tuple[str, dict]]:
@@ -201,13 +245,18 @@ def renderizar(fonte: dict, clipe: dict, palavras: list[dict], pasta_saida: Path
     credito = credito_de(fonte, opcoes.get("credito", "")) if opcoes.get("mostrar_credito", True) else ""
     gancho = clipe.get("gancho", "") if opcoes.get("mostrar_gancho", True) else ""
     layout = opcoes.get("layout", "desfocado")
+    marca = marca_ativa(opcoes.get("marca"))
     (trab / "legenda.ass").write_text(
         montar_ass(palavras, ini, fim, gancho, credito,
-                   opcoes.get("legenda_maiuscula", True), layout), encoding="utf-8")
+                   opcoes.get("legenda_maiuscula", True), layout, marca), encoding="utf-8")
 
     entradas = _entradas(fonte, ini, dur)
     n_entradas = entradas.count("-i")
     audio = f"{n_entradas - 1}:a:0" if n_entradas > 1 else "0:a:0?"
+    pedaco_logo = ""
+    if marca and marca["caminho_logo"]:
+        entradas += ["-i", str(marca["caminho_logo"])]  # imagem parada: o overlay repete
+        pedaco_logo = filtro_logo(n_entradas, marca, dur)
     if ferramentas.tem_nvenc():
         cod = ["-c:v", "h264_nvenc", "-preset", "p5", "-rc", "vbr", "-cq", "21", "-b:v", "0",
                "-maxrate", "12M", "-bufsize", "24M"]
@@ -216,7 +265,7 @@ def renderizar(fonte: dict, clipe: dict, palavras: list[dict], pasta_saida: Path
     mp4 = pasta_saida / f"{nome}.mp4"
     args = [ferramentas.caminho_ffmpeg() or "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
             *entradas,
-            "-filter_complex", filtro_video(layout),
+            "-filter_complex", filtro_video(layout, pedaco_logo),
             "-map", "[v]", "-map", audio,
             *cod, "-pix_fmt", "yuv420p", "-r", "30",
             "-af", "loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000",

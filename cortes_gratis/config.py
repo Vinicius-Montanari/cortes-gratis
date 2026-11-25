@@ -29,6 +29,7 @@ PASTA_WHISPER = DADOS / "modelos-whisper"    # modelos de transcrição
 PASTA_OLLAMA = DADOS / "ollama"              # programa da IA local
 PASTA_OLLAMA_MODELOS = DADOS / "ollama" / "modelos"
 PASTA_PROJETOS = DADOS / "projetos"          # um subpasta por vídeo cortado
+PASTA_MARCA = DADOS / "marca"                # seu logo
 ARQUIVO_CONFIG = DADOS / "config.json"
 
 # Bibliotecas que guardam cache na pasta do usuário (no C:) passam a guardar aqui.
@@ -84,6 +85,20 @@ PADRAO: dict = {
         "legenda_maiuscula": True,
         "mostrar_gancho": True,
         "mostrar_credito": True,
+    },
+    # Sua marca: logo e @ de quem fez o corte. Posições em fração da tela
+    # (0 a 1, centro do elemento), então valem pra qualquer layout.
+    "marca": {
+        "ativo": False,
+        "logo": "",             # nome do arquivo em dados/marca
+        "logo_x": 0.86, "logo_y": 0.215,
+        "logo_tam": 0.14,       # largura do logo em fração da largura do vídeo
+        "texto": "",            # ex.: "corte: @seunome"
+        "texto_x": 0.5, "texto_y": 0.215,
+        "texto_tam": 44,        # tamanho da letra (vídeo de 1080 de largura)
+        "opacidade": 0.9,
+        "quando": "sempre",     # sempre ou inicio_fim (só 4 s no começo e no fim)
+        "zona": "tiktok",       # só pro editor: qual app mostrar por cima
     },
 }
 

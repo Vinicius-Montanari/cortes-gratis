@@ -9,10 +9,13 @@ RAIZ = SPECPATH + "/.."
 
 datas = [(RAIZ + "/cortes_gratis/web", "cortes_gratis/web")]
 datas += collect_data_files("faster_whisper")      # modelo de detecção de voz (VAD)
+datas += collect_data_files("curl_cffi")          # certificados do curl_cffi
 binaries = collect_dynamic_libs("ctranslate2")     # motor do Whisper (+ cudnn64_9.dll)
+binaries += collect_dynamic_libs("curl_cffi")      # libcurl: imita navegador (Kick/Cloudflare)
 hiddenimports = (
     collect_submodules("yt_dlp.extractor")         # um módulo por site
     + collect_submodules("uvicorn")
+    + collect_submodules("curl_cffi")              # o yt-dlp importa só na hora
     + ["cortes_gratis.servidor"]
 )
 

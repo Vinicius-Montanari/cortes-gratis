@@ -211,11 +211,17 @@ A transcrição e a IA local não rodam ao mesmo tempo: o programa libera a plac
 2. Escolha o idioma (deixar certo acelera e evita erro quando a live começa com música).
 3. **Live longa?** Preencha **Só a partir de / até** com a parte que interessa (ex.: `1:00:00` até `2:30:00`). Fica bem mais rápido.
 4. Escolha o layout e clique em **Cortar os melhores momentos**.
-5. Acompanhe a barra. No fim, cada clipe aparece com player, nota e motivo:
+5. Acompanhe as etapas. No fim, o projeto mostra a **linha do tempo** da live (volume, com os trechos aprovados em verde) e cada clipe com player, nota, motivo e a lista de verificação da IA (se entende sozinho, reação forte, tem fecho):
    - **Baixar** e **Texto do post** pegam o `.mp4` e o `.txt`;
    - **Ajustar e refazer** muda início, fim, título ou gancho e monta de novo só aquele;
-   - em **Descartados pela IA**, **Cortar mesmo assim** monta um trecho que a IA reprovou.
+   - em **Descartados pela IA**, **Cortar assim mesmo** monta um trecho que a IA reprovou.
 6. **Abrir pasta** mostra os arquivos no Explorer. Cada vídeo vira uma pasta em `dados\projetos`.
+
+### Sua marca (logo e @ de quem cortou)
+
+Em **Configurações → Sua marca** você coloca seu logo (PNG com fundo transparente fica melhor) e um texto tipo `corte: @seunome`, e **arrasta os dois** em cima de um quadro de clipe de verdade. O editor mostra em vermelho onde ficam os botões do TikTok, Reels ou Shorts e avisa se o logo vai ficar escondido. Dá pra mudar tamanho, opacidade e escolher se aparece o clipe todo ou só 4 s no começo e no fim. O crédito do streamer continua sempre no vídeo.
+
+O botão no canto do topo troca entre tema claro e escuro.
 
 Live **ao vivo** não dá: espere acabar e use o link da gravação (VOD).
 

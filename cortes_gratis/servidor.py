@@ -105,6 +105,68 @@ async def salvar_config(request: Request):
     return _mascarar(config.salvar(config._mesclar(atual, novo)))
 
 
+# ------------------------------------------------------------------ sua marca
+# O logo chega em base64 dentro de JSON (o servidor só aceita JSON, ver so_local).
+TIPOS_LOGO = {b"\x89PNG\r\n\x1a\n": ".png", b"\xff\xd8\xff": ".jpg", b"RIFF": ".webp"}
+LOGO_MAX = 3 * 1024 * 1024
+
+
+@app.post("/api/marca/logo")
+async def enviar_logo(request: Request):
+    import base64
+    import binascii
+    corpo = await request.json()
+    dados = str(corpo.get("dados") or "")
+    try:
+        bruto = base64.b64decode(dados.split(",", 1)[-1], validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(400, "Arquivo inválido.") from None
+    if len(bruto) > LOGO_MAX:
+        raise HTTPException(400, "Logo grande demais (máximo 3 MB).")
+    ext = next((e for m, e in TIPOS_LOGO.items() if bruto.startswith(m)), None)
+    if ext == ".webp" and bruto[8:12] != b"WEBP":
+        ext = None
+    if not ext:
+        raise HTTPException(400, "Use PNG (de preferência com fundo transparente), JPG ou WEBP.")
+    config.PASTA_MARCA.mkdir(parents=True, exist_ok=True)
+    for velho in config.PASTA_MARCA.glob("logo.*"):
+        velho.unlink(missing_ok=True)
+    (config.PASTA_MARCA / f"logo{ext}").write_bytes(bruto)
+    config.salvar(config._mesclar(config.carregar(), {"marca": {"logo": f"logo{ext}"}}))
+    return {"logo": f"logo{ext}"}
+
+
+@app.delete("/api/marca/logo")
+def apagar_logo():
+    for velho in config.PASTA_MARCA.glob("logo.*"):
+        velho.unlink(missing_ok=True)
+    config.salvar(config._mesclar(config.carregar(), {"marca": {"logo": ""}}))
+    return {"ok": True}
+
+
+@app.get("/api/marca/logo")
+def ver_logo():
+    nome = config.carregar()["marca"].get("logo") or ""
+    alvo = (config.PASTA_MARCA / nome).resolve()
+    if not nome or alvo.parent != config.PASTA_MARCA.resolve() or not alvo.is_file():
+        raise HTTPException(404)
+    return FileResponse(alvo, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/marca/previa")
+def previa_marca():
+    """Um quadro de clipe já cortado, pra servir de fundo no editor da marca."""
+    for p in pipeline.listar_projetos():
+        try:
+            d = _projeto(p["id"]).dados
+        except HTTPException:
+            continue
+        for cl in d.get("clipes", []):
+            if (config.PASTA_PROJETOS / p["id"] / "clipes" / cl.get("capa", "")).is_file():
+                return {"url": f"/arquivos/{p['id']}/{cl['capa']}"}
+    return {"url": None}
+
+
 @app.post("/api/testar-ia/{nome}")
 def testar_ia(nome: str):
     cfg = config.carregar()
