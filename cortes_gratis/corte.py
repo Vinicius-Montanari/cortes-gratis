@@ -179,24 +179,48 @@ def geometria_camera(cam: dict, aspecto_fonte: float = 16 / 9) -> dict:
         ch = _par(maximo)
         cw = _par(ch / proporcao)
     y_jogo = _par(y_cam + ch + ALTURA * min(0.2, max(0.0, float(cam.get("espaco", 0.0)))))
-    return {"cam": [x, y, w, h], "jogo": [float(v) for v in cam.get("jogo", [0, 0, 1, 1])],
+    jh = _par(ALTURA - y_jogo)
+    jogo = [float(v) for v in cam.get("jogo", [0, 0, 1, 1])]
+    return {"cam": [x, y, w, h], "jogo": jogo,
+            "jogo_corte": recorte_jogo(jogo, [x, y, w, h], LARGURA / jh, aspecto_fonte),
             "cw": cw, "ch": ch, "x_cam": (LARGURA - cw) // 2, "y_cam": y_cam,
-            "y_jogo": y_jogo, "jh": _par(ALTURA - y_jogo), "divisa": y_cam + ch}
+            "y_jogo": y_jogo, "jh": jh, "divisa": y_cam + ch}
+
+
+def recorte_jogo(jogo: list[float], cam: list[float], asp_tela: float,
+                 aspecto_fonte: float) -> list[float]:
+    """Pedaço do vídeo original que vai pra área do jogo [x, y, w, h] (frações).
+
+    Pega o maior pedaço com a proporção da área de baixo, centralizado no
+    retângulo do jogo. Se a câmera do streamer cair dentro desse pedaço, empurra
+    o recorte pro lado oposto (dentro do retângulo do jogo) pra ela não
+    aparecer duas vezes no clipe."""
+    jx, jy, jw, jh = jogo
+    # largura/altura em fração: w_px/h_px = asp_tela  ->  w = h * asp_tela / aspecto_fonte
+    w = min(jw, jh * asp_tela / aspecto_fonte)
+    h = min(jh, jw * aspecto_fonte / asp_tela)
+    x, y = jx + (jw - w) / 2, jy + (jh - h) / 2
+    cx, cy, cw, ch = cam
+    cruza_vertical = cy < y + h and cy + ch > y
+    cruza_horizontal = cx < x + w and cx + cw > x
+    if cruza_vertical and cruza_horizontal:
+        if cx + cw / 2 < x + w / 2:   # câmera no lado esquerdo: recorte vai pra direita
+            x = min(max(x, cx + cw), jx + jw - w)
+        else:                         # câmera no lado direito: recorte vai pra esquerda
+            x = max(min(x, cx - w), jx)
+    return [round(x, 4), round(y, 4), round(w, 4), round(h, 4)]
 
 
 def _filtro_camera(a: str, b: str, c: str, g: dict) -> str:
     """Fundo borrado + câmera recortada em cima + centro do jogo embaixo."""
     cx, cy, cw, ch = g["cam"]
-    jx, jy, jw, jh = g["jogo"]
-    asp = LARGURA / g["jh"]  # proporção da área do jogo na tela
+    jx, jy, jw, jh = g["jogo_corte"]
     fundo = (f"{a}scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
              "boxblur=20:3,eq=brightness=-0.12,scale=1080:1920,setsar=1[fundo];")
     camera = (f"{b}crop=w=iw*{cw:.4f}:h=ih*{ch:.4f}:x=iw*{cx:.4f}:y=ih*{cy:.4f},"
               f"scale={g['cw']}:{g['ch']},setsar=1[cam];")
-    # Do retângulo do jogo, pega o maior pedaço do centro com a proporção da área de baixo.
-    jogo = (f"{c}crop=w='min(iw*{jw:.4f},ih*{jh:.4f}*{asp:.5f})'"
-            f":h='min(ih*{jh:.4f},iw*{jw:.4f}/{asp:.5f})'"
-            f":x='iw*{jx:.4f}+(iw*{jw:.4f}-ow)/2':y='ih*{jy:.4f}+(ih*{jh:.4f}-oh)/2',"
+    # Pedaço do jogo já calculado (recorte_jogo), desviando da câmera.
+    jogo = (f"{c}crop=w=iw*{jw:.4f}:h=ih*{jh:.4f}:x=iw*{jx:.4f}:y=ih*{jy:.4f},"
             f"scale={LARGURA}:{g['jh']},setsar=1[jogo];")
     return (fundo + camera + jogo
             + f"[fundo][cam]overlay={g['x_cam']}:{g['y_cam']}[t1];"

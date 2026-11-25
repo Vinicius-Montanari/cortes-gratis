@@ -860,7 +860,20 @@ function geometriaCamera(c, aspecto) {
   const max = 1920 - yCam - 480;
   if (ch > max) { ch = par(max); cw = par(ch / prop); }
   const yJogo = par(yCam + ch + 1920 * Math.min(0.2, Math.max(0, c.espaco)));
-  return { cw, ch, xCam: (1080 - cw) / 2, yCam, yJogo, jh: par(1920 - yJogo) };
+  const jh = par(1920 - yJogo);
+  return { cw, ch, xCam: (1080 - cw) / 2, yCam, yJogo, jh, jogoCorte: recorteJogo(c.jogo, c.cam, 1080 / jh, aspecto) };
+}
+
+// Mesma conta de corte.recorte_jogo: maior pedaço com a proporção da área de
+// baixo, centralizado no retângulo do jogo, desviando da câmera do streamer.
+function recorteJogo([jx, jy, jw, jh], [cx, cy, cw, ch], aspTela, aspFonte) {
+  const w = Math.min(jw, jh * aspTela / aspFonte), h = Math.min(jh, jw * aspFonte / aspTela);
+  let x = jx + (jw - w) / 2;
+  const y = jy + (jh - h) / 2;
+  if (cy < y + h && cy + ch > y && cx < x + w && cx + cw > x) {
+    x = cx + cw / 2 < x + w / 2 ? Math.min(Math.max(x, cx + cw), jx + jw - w) : Math.max(Math.min(x, cx - w), jx);
+  }
+  return [x, y, w, h];
 }
 
 function desenharCamera() {
@@ -885,10 +898,9 @@ function desenharCamera() {
   // câmera
   const [cx, cy, cw, ch] = c.cam;
   ctx.drawImage(img, cx * W, cy * H, cw * W, ch * H, g.xCam * k, g.yCam * k, g.cw * k, g.ch * k);
-  // jogo: maior pedaço do centro do retângulo com a proporção da área de baixo
-  const [jx, jy, jw, jh] = c.jogo, asp = 1080 / g.jh;
-  const sw = Math.min(jw * W, jh * H * asp), sh = Math.min(jh * H, jw * W / asp);
-  ctx.drawImage(img, jx * W + (jw * W - sw) / 2, jy * H + (jh * H - sh) / 2, sw, sh, 0, g.yJogo * k, 1080 * k, g.jh * k);
+  // jogo: pedaço calculado igual ao do corte (desvia da câmera)
+  const [jx, jy, jw, jh] = g.jogoCorte;
+  ctx.drawImage(img, jx * W, jy * H, jw * W, jh * H, 0, g.yJogo * k, 1080 * k, g.jh * k);
   // onde o gancho vai ficar
   ctx.fillStyle = "#fff";
   ctx.fillRect(cv.width * 0.18, (g.yCam + g.ch) * k - 9, cv.width * 0.64, 18);

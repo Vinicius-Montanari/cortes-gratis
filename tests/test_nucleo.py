@@ -283,3 +283,17 @@ def test_layout_camera_monta_camera_em_cima_e_jogo_embaixo():
     assert "split=3[srca][srcb][srcc]" in f and "[t1][jogo]overlay=0:" in f
     ass = corte.montar_ass([], 0, 10, "GANCHO", "", True, "camera", gancho_y=g["divisa"])
     assert rf"\pos(540,{g['divisa']})" in ass
+
+
+def test_recorte_do_jogo_desvia_da_camera():
+    from cortes_gratis import corte
+    asp_tela = 1080 / 1024
+    # câmera no canto de cima à esquerda (até 24% da largura): recorte começa depois dela
+    x, y, w, h = corte.recorte_jogo([0, 0, 1, 1], [0.0, 0.115, 0.24, 0.278], asp_tela, 16 / 9)
+    assert x >= 0.24 and x + w <= 1.0 and h == 1.0
+    # câmera no canto direito: recorte termina antes dela
+    x, y, w, h = corte.recorte_jogo([0, 0, 1, 1], [0.78, 0.7, 0.22, 0.3], asp_tela, 16 / 9)
+    assert x + w <= 0.78 + 1e-6 and x >= 0
+    # câmera fora do recorte central: fica no centro
+    x, y, w, h = corte.recorte_jogo([0, 0, 1, 1], [0.0, 0.0, 0.1, 0.1], asp_tela, 16 / 9)
+    assert abs((x + w / 2) - 0.5) < 1e-3
