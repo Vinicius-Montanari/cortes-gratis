@@ -4,191 +4,294 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cortes Grátis</title>
+<script>
+  // Aplica o tema antes de desenhar, pra não piscar.
+  document.documentElement.dataset.tema = localStorage.getItem("tema") ||
+    (matchMedia("(prefers-color-scheme: light)").matches ? "claro" : "escuro");
+</script>
+<link rel="preload" href="fontes/familjen-grotesk.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="estilo.css">
 <link rel="icon" href="icone.png">
 </head>
 <body>
 <header>
-  <div class="marca"><span class="logo">✂</span> Cortes Grátis <small id="versao"></small></div>
-  <nav>
-    <button data-aba="cortar" class="ativa">Cortar</button>
-    <button data-aba="projetos">Projetos</button>
-    <button data-aba="config">Configurações</button>
-  </nav>
-  <div id="chips"></div>
+  <div class="topo">
+    <div class="marca">
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><rect x="2" y="4" width="22" height="18" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 4 L17 22" stroke="currentColor" stroke-width="2"/></svg>
+      <b>cortes grátis</b><small id="versao"></small>
+    </div>
+    <nav class="abas">
+      <button data-aba="cortar" class="ativa">Cortar</button>
+      <button data-aba="projetos">Projetos</button>
+      <button data-aba="config">Configurações</button>
+    </nav>
+    <div id="chips"></div>
+    <button id="trocar-tema" aria-label="Trocar tema claro/escuro" title="Trocar tema claro/escuro">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg>
+    </button>
+  </div>
 </header>
 
 <main>
   <!-- ============================================================ CORTAR -->
   <section id="aba-cortar" class="aba">
     <div id="aviso-ia" class="aviso escondido"></div>
-    <form id="form-novo" class="cartao">
-      <label class="grande">Link da live gravada ou caminho do arquivo
-        <input id="entrada" required placeholder="https://www.twitch.tv/videos/...  ou  F:\Videos\live.mp4" autocomplete="off">
-      </label>
-      <div class="linha">
-        <label>Idioma
-          <select id="idioma">
-            <option value="">Detectar sozinho</option>
-            <option value="pt" selected>Português</option>
-            <option value="en">Inglês</option>
-            <option value="es">Espanhol</option>
-          </select>
+    <div class="duas-colunas">
+      <form id="form-novo" class="coluna-principal">
+        <div>
+          <h1>Cole a live.<br><em>Saem os cortes.</em></h1>
+          <p class="sub">Transcreve, acha os momentos com reação, a IA descarta os fracos e corta em 9:16 com legenda.</p>
+        </div>
+
+        <label>Link da live gravada ou arquivo no computador
+          <span class="campo-link">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 14a4 4 0 0 0 6 0l3-3a4 4 0 0 0-6-6l-1 1"/><path d="M14 10a4 4 0 0 0-6 0l-3 3a4 4 0 0 0 6 6l1-1"/></svg>
+            <input id="entrada" required placeholder="https://kick.com/canal/videos/...  ou  F:\Videos\live.mp4" autocomplete="off">
+          </span>
+          <span class="formatos-ok">Twitch · YouTube · Kick · .mp4 / .mkv</span>
         </label>
-        <label title="Deixe vazio pra analisar o vídeo inteiro">Só a partir de
-          <input id="trecho-inicio" placeholder="ex.: 1:00:00">
-        </label>
-        <label>até
-          <input id="trecho-fim" placeholder="ex.: 2:30:00">
-        </label>
-        <label>Nota mínima <b id="nota-valor">6</b>
-          <input id="nota-minima" type="range" min="3" max="9" step="0.5" value="6">
-        </label>
-      </div>
-      <div class="linha">
+
+        <div class="grade-3">
+          <label>Idioma
+            <select id="idioma">
+              <option value="">Detectar sozinho</option>
+              <option value="pt" selected>Português</option>
+              <option value="en">Inglês</option>
+              <option value="es">Espanhol</option>
+            </select>
+          </label>
+          <label title="Deixe vazio pra analisar o vídeo inteiro">A partir de
+            <input id="trecho-inicio" class="hora" placeholder="início">
+          </label>
+          <label>Até
+            <input id="trecho-fim" class="hora" placeholder="fim">
+          </label>
+        </div>
+
         <fieldset class="layouts">
-          <legend>Layout</legend>
-          <label><input type="radio" name="layout" value="desfocado" checked><span>Desfocado<small>vídeo inteiro, fundo borrado</small></span></label>
-          <label><input type="radio" name="layout" value="quadrado"><span>Quadrado<small>jogo maior</small></span></label>
-          <label><input type="radio" name="layout" value="centro"><span>Centro<small>tela cheia, corta as laterais</small></span></label>
+          <legend>Formato do clipe</legend>
+          <div class="opcoes">
+            <label><input type="radio" name="layout" value="desfocado" checked><span class="tile"><span class="mini desfocado"><i></i></span><span><b>Desfocado</b><small>vídeo inteiro, fundo borrado</small></span></span></label>
+            <label><input type="radio" name="layout" value="quadrado"><span class="tile"><span class="mini quadrado"><i></i></span><span><b>Quadrado</b><small>jogo maior</small></span></span></label>
+            <label><input type="radio" name="layout" value="centro"><span class="tile"><span class="mini centro"><i></i></span><span><b>Centro</b><small>tela cheia, corta laterais</small></span></span></label>
+          </div>
         </fieldset>
+
         <label>Crédito (@ do canal)
           <input id="credito" placeholder="vazio = usa o nome do canal">
         </label>
-      </div>
-      <p class="dica">Use só vídeo seu ou de canal que libera clipe. O crédito vai no vídeo e no texto do post.</p>
-      <button class="primario" type="submit">Cortar os melhores momentos</button>
-    </form>
 
-    <div id="projeto" class="escondido">
-      <div class="cartao">
-        <div class="topo-projeto">
-          <h2 id="p-titulo"></h2>
-          <div class="acoes">
-            <button id="p-pasta">Abrir pasta</button>
-            <button id="p-retomar" class="escondido">Tentar de novo</button>
+        <div class="acao-final">
+          <button class="primario grande-botao" type="submit">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></svg>
+            Cortar os melhores momentos
+          </button>
+          <label class="nota-slider">Nota mínima
+            <input id="nota-minima" type="range" min="3" max="9" step="0.5" value="6">
+            <b id="nota-valor">6</b>
+          </label>
+        </div>
+        <p class="dica" style="margin:0">Use só vídeo seu ou de canal que libera clipe. O crédito vai no vídeo e no texto do post.</p>
+      </form>
+
+      <aside class="coluna-lado">
+        <div id="lado-andamento" class="escondido">
+          <div class="cabeca-lado" style="margin-bottom:12px">
+            <span class="rotulo">Em andamento</span>
+            <a href="#" id="lado-ver">Ver projeto</a>
+          </div>
+          <div class="cartao andamento" style="margin:0">
+            <div>
+              <div class="titulo-p" id="lado-titulo"></div>
+              <div class="meta" id="lado-meta"></div>
+            </div>
+            <ol class="etapas" id="lado-etapas"></ol>
+            <div class="barra"><div id="lado-barra"></div></div>
+            <div class="ultima-linha" id="lado-log"></div>
           </div>
         </div>
-        <div class="barra"><div id="p-barra"></div></div>
-        <p id="p-msg" class="msg"></p>
-        <p id="p-erro" class="erro escondido"></p>
-        <details><summary>Ver registro</summary><pre id="p-log"></pre></details>
+        <div class="cartao recentes" id="lado-recentes">
+          <span class="rotulo">Recentes</span>
+          <div id="lista-recentes"></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ============================================================ PROJETO -->
+  <section id="aba-projeto" class="aba escondido">
+    <div class="topo-projeto">
+      <div style="min-width:0">
+        <button class="voltar" id="p-voltar">← Projetos</button>
+        <h1 id="p-titulo"></h1>
+        <div class="meta" id="p-meta" style="font-size:13px"></div>
       </div>
-      <h3 id="p-clipes-titulo" class="escondido">Clipes</h3>
-      <div id="p-clipes" class="grade"></div>
-      <h3 id="p-desc-titulo" class="escondido">Descartados pela IA <small>(dá pra cortar mesmo assim)</small></h3>
+      <div class="acoes">
+        <button id="p-retomar" class="primario escondido">Tentar de novo</button>
+        <button id="p-pasta">Abrir pasta</button>
+      </div>
+    </div>
+
+    <div id="p-progresso" class="cartao progresso-projeto">
+      <ol class="etapas em-linha" id="p-etapas"></ol>
+      <div class="barra"><div id="p-barra"></div></div>
+      <p id="p-msg" class="msg" style="margin:0"></p>
+      <p id="p-erro" class="erro escondido" style="margin:0"></p>
+      <details><summary>Ver registro</summary><pre id="p-log"></pre></details>
+    </div>
+
+    <div id="p-linha" class="cartao linha-tempo escondido">
+      <div class="cabeca">
+        <span>Linha do tempo · volume e trechos encontrados</span>
+        <span class="legenda"><span><i style="background:var(--chroma)"></i>aprovado</span><span><i style="background:var(--cand)"></i>descartado</span></span>
+      </div>
+      <div class="ondas" id="p-ondas"></div>
+      <div class="marcas-tempo" id="p-marcas"></div>
+    </div>
+
+    <div id="p-clipes" class="lista-clipes"></div>
+
+    <div id="p-desc-box" class="escondido">
+      <div class="cabeca-desc">
+        <h3>Descartados pela IA <small>· dá pra cortar mesmo assim</small></h3>
+        <span class="meta" id="p-regua"></span>
+      </div>
       <div id="p-descartados"></div>
     </div>
   </section>
 
   <!-- ============================================================ PROJETOS -->
   <section id="aba-projetos" class="aba escondido">
+    <h1 style="font-size:32px;margin-bottom:24px">Projetos</h1>
     <div id="lista-projetos"></div>
   </section>
 
   <!-- ============================================================ CONFIG -->
   <section id="aba-config" class="aba escondido">
-    <div class="cartao">
-      <h2>IAs que filtram os clipes</h2>
-      <p class="dica">O programa tenta na ordem abaixo. Quando a cota grátis de uma acaba, passa pra próxima.
-        A IA local fica por último: não tem limite, mas é mais lenta e um pouco menos esperta.</p>
-      <div id="lista-ias"></div>
-    </div>
+    <div class="config">
+      <nav aria-label="Seções">
+        <a href="#c-ias">IAs de texto</a>
+        <a href="#c-imagem">Conferir a imagem</a>
+        <a href="#cartao-ollama">IA local</a>
+        <a href="#c-transcricao">Transcrição</a>
+        <a href="#c-corte">Corte e legenda</a>
+        <div class="pasta-box">Tudo fica em<br><code id="pasta-dados"></code></div>
+      </nav>
 
-    <div class="cartao">
-      <h2>Conferir a imagem</h2>
-      <p class="dica">A IA de texto só lê a fala e às vezes se engana ("oh meu deus" numa loja de armas vira "susto").
-        Com isto ligado, uma IA que enxerga olha 4 quadros de cada trecho aprovado: reprova menu, loja, mapa e tela de
-        carregamento, e a nota da imagem entra na nota final. Usa o Gemini se tiver chave; senão, a IA local abaixo.</p>
-      <div class="linha">
-        <label class="check"><input type="checkbox" id="visao-ativo"> Conferir a imagem antes de cortar</label>
-        <label>IA local que enxerga
-          <select id="visao-modelo">
-            <option value="qwen3-vl:4b-instruct">qwen3-vl:4b-instruct — 3,3 GB — recomendado (~5 GB de VRAM)</option>
-            <option value="qwen3-vl:2b-instruct">qwen3-vl:2b-instruct — menor, pra placa de 4 a 6 GB</option>
-            <option value="gemma3:4b">gemma3:4b — 3,4 GB — mais leve, mas aprova quase tudo</option>
-          </select>
-        </label>
-        <label>Peso da imagem na nota <b id="visao-peso-valor"></b>
-          <input id="visao-peso" type="range" min="0.1" max="0.8" step="0.1">
-        </label>
-      </div>
-      <p class="dica">O modelo de imagem local é baixado sozinho na primeira vez que precisar.</p>
-    </div>
-
-    <div class="cartao" id="cartao-ollama">
-      <h2>IA local (roda na sua placa de vídeo)</h2>
-      <p class="dica">Instala tudo em <code id="ollama-pasta"></code>. Não precisa de admin nem de instalador.</p>
-      <div id="ollama-status"></div>
-      <div class="linha">
-        <label>Modelo
-          <select id="ollama-modelo"></select>
-        </label>
-        <button id="ollama-instalar" class="primario">Instalar e ligar</button>
-        <button id="ollama-ligar">Ligar</button>
-        <button id="ollama-desligar">Desligar</button>
-        <button id="ollama-remover" class="perigo">Desinstalar</button>
-      </div>
-      <div class="barra escondido" id="ollama-barra-box"><div id="ollama-barra"></div></div>
-      <p id="ollama-msg" class="msg"></p>
-      <details>
-        <summary>O botão deu erro? Outras formas de instalar</summary>
-        <div class="dica">
-          <p><b>1. Pela janela de comando</b> (mostra cada passo e qualquer erro):
-            menu Iniciar → <b>Instalar IA local</b>. Ou, na pasta do programa:
-            <code>"Cortes Gratis.exe" --instalar-ia-local</code></p>
-          <p><b>2. Usando o Ollama oficial:</b> instale pelo site
-            <a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com/download</a>,
-            rode <code>ollama pull qwen2.5:7b</code> e troque o endereço abaixo para
-            <code>http://127.0.0.1:11434/v1</code>. Nesse caso os modelos ficam onde o Ollama oficial guarda
-            (no C:, a não ser que você defina a variável <code>OLLAMA_MODELS</code>).</p>
+      <div class="conteudo">
+        <div class="cartao" id="c-ias">
+          <h2>IAs que filtram os clipes</h2>
+          <p class="dica">Tenta de cima pra baixo. Quando a cota grátis de uma acaba, passa pra próxima.
+            A IA local fica por último: não tem limite, mas é mais lenta e um pouco menos esperta.</p>
+          <div id="lista-ias"></div>
         </div>
-        <div class="linha">
-          <label>Endereço da IA local
-            <input id="ollama-url" placeholder="http://127.0.0.1:11435/v1">
-          </label>
-          <button id="ollama-url-salvar">Salvar endereço</button>
-        </div>
-      </details>
-    </div>
 
-    <div class="cartao">
-      <h2>Transcrição</h2>
-      <div class="linha">
-        <label>Modelo do Whisper
-          <select id="whisper-modelo">
-            <option value="auto">Automático (large-v3-turbo com placa, small sem)</option>
-            <option value="large-v3-turbo">large-v3-turbo (melhor, precisa de placa)</option>
-            <option value="medium">medium</option>
-            <option value="small">small (rápido no processador)</option>
-            <option value="base">base (mais rápido, erra mais)</option>
-          </select>
-        </label>
-        <label>Usar
-          <select id="whisper-disp">
-            <option value="auto">Placa de vídeo se tiver</option>
-            <option value="cuda">Só placa de vídeo</option>
-            <option value="cpu">Só processador</option>
-          </select>
-        </label>
+        <div class="par">
+          <div class="cartao" id="c-imagem">
+            <div class="cabeca-cartao">
+              <h2>Conferir a imagem</h2>
+              <label class="check"><input type="checkbox" id="visao-ativo"> ligado</label>
+            </div>
+            <p class="dica">A IA de texto só lê a fala. Com isto ligado, uma IA que enxerga olha 4 quadros de cada trecho
+              aprovado e reprova menu, loja, mapa e tela de carregamento. Usa o Gemini se tiver chave; senão, a IA local.</p>
+            <div class="linha">
+              <label>IA local que enxerga
+                <select id="visao-modelo">
+                  <option value="qwen3-vl:4b-instruct">qwen3-vl:4b-instruct · 3,3 GB · recomendado (~5 GB de VRAM)</option>
+                  <option value="qwen3-vl:2b-instruct">qwen3-vl:2b-instruct · menor, pra placa de 4 a 6 GB</option>
+                  <option value="gemma3:4b">gemma3:4b · 3,4 GB · mais leve, mas aprova quase tudo</option>
+                </select>
+              </label>
+            </div>
+            <label>
+              <span style="display:flex;justify-content:space-between">Peso da imagem na nota <b id="visao-peso-valor" class="mono" style="color:var(--texto)"></b></span>
+              <input id="visao-peso" type="range" min="0.1" max="0.8" step="0.1">
+            </label>
+            <p class="dica" style="margin-bottom:0">O modelo de imagem local é baixado sozinho na primeira vez que precisar.</p>
+          </div>
+
+          <div class="cartao" id="cartao-ollama">
+            <h2>IA local</h2>
+            <p class="dica">Roda na sua placa de vídeo. Instala tudo em <code id="ollama-pasta"></code>, sem admin.</p>
+            <div id="ollama-status"></div>
+            <div class="linha">
+              <label>Modelo de texto
+                <select id="ollama-modelo"></select>
+              </label>
+            </div>
+            <div class="acoes" style="margin-bottom:12px">
+              <button id="ollama-instalar" class="primario">Instalar e ligar</button>
+              <button id="ollama-ligar">Ligar</button>
+              <button id="ollama-desligar">Desligar</button>
+              <button id="ollama-remover" class="perigo">Desinstalar</button>
+            </div>
+            <div class="barra escondido" id="ollama-barra-box"><div id="ollama-barra"></div></div>
+            <p id="ollama-msg" class="msg"></p>
+            <details>
+              <summary>O botão deu erro? Outras formas de instalar</summary>
+              <div class="dica">
+                <p><b>1. Pela janela de comando</b> (mostra cada passo e qualquer erro):
+                  menu Iniciar → <b>Instalar IA local</b>. Ou, na pasta do programa:
+                  <code>"Cortes Gratis.exe" --instalar-ia-local</code></p>
+                <p><b>2. Usando o Ollama oficial:</b> instale pelo site
+                  <a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com/download</a>,
+                  rode <code>ollama pull qwen2.5:7b</code> e troque o endereço abaixo para
+                  <code>http://127.0.0.1:11434/v1</code>. Nesse caso os modelos ficam onde o Ollama oficial guarda
+                  (no C:, a não ser que você defina a variável <code>OLLAMA_MODELS</code>).</p>
+              </div>
+              <div class="linha">
+                <label>Endereço da IA local
+                  <input id="ollama-url" class="mono" placeholder="http://127.0.0.1:11435/v1">
+                </label>
+                <button id="ollama-url-salvar">Salvar endereço</button>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <div class="cartao" id="c-transcricao">
+          <h2>Transcrição</h2>
+          <div class="linha" style="margin:12px 0 0">
+            <label>Modelo do Whisper
+              <select id="whisper-modelo">
+                <option value="auto">Automático (large-v3-turbo com placa, small sem)</option>
+                <option value="large-v3-turbo">large-v3-turbo (melhor, precisa de placa)</option>
+                <option value="medium">medium</option>
+                <option value="small">small (rápido no processador)</option>
+                <option value="base">base (mais rápido, erra mais)</option>
+              </select>
+            </label>
+            <label>Usar
+              <select id="whisper-disp">
+                <option value="auto">Placa de vídeo se tiver</option>
+                <option value="cuda">Só placa de vídeo</option>
+                <option value="cpu">Só processador</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="cartao" id="c-corte">
+          <h2>Corte e legenda</h2>
+          <div class="numeros" style="margin-top:12px">
+            <label>Máximo de clipes <input id="max-clipes" type="number" min="1" max="30"></label>
+            <label>Trechos que a IA avalia <input id="n-candidatos" type="number" min="4" max="80"></label>
+            <label>Duração mínima (s) <input id="dur-min" type="number" min="5" max="120"></label>
+            <label>Duração máxima (s) <input id="dur-max" type="number" min="10" max="180"></label>
+            <label title="A IA local (modelo pequeno) costuma dar nota alta pra tudo">Nota extra da IA local
+              <input id="ajuste-local" type="number" min="0" max="3" step="0.5"></label>
+          </div>
+          <div class="linha">
+            <label class="check"><input type="checkbox" id="maiuscula"> Legenda em MAIÚSCULAS</label>
+            <label class="check"><input type="checkbox" id="mostrar-gancho"> Gancho no topo</label>
+            <label class="check"><input type="checkbox" id="mostrar-credito"> Crédito no vídeo</label>
+          </div>
+          <div class="salvar-linha">
+            <span id="salvo" class="msg"></span>
+            <button id="salvar-config" class="primario grande-botao">Salvar</button>
+          </div>
+        </div>
       </div>
-      <h2>Corte</h2>
-      <div class="linha">
-        <label>Máximo de clipes <input id="max-clipes" type="number" min="1" max="30"></label>
-        <label>Trechos que a IA avalia <input id="n-candidatos" type="number" min="4" max="80"></label>
-        <label>Duração mínima (s) <input id="dur-min" type="number" min="5" max="120"></label>
-        <label>Duração máxima (s) <input id="dur-max" type="number" min="10" max="180"></label>
-        <label title="A IA local (modelo pequeno) costuma dar nota alta pra tudo">Nota extra exigida da IA local
-          <input id="ajuste-local" type="number" min="0" max="3" step="0.5"></label>
-      </div>
-      <div class="linha">
-        <label class="check"><input type="checkbox" id="maiuscula"> Legenda em MAIÚSCULAS</label>
-        <label class="check"><input type="checkbox" id="mostrar-gancho"> Gancho no topo</label>
-        <label class="check"><input type="checkbox" id="mostrar-credito"> Crédito no vídeo</label>
-      </div>
-      <button id="salvar-config" class="primario">Salvar</button>
-      <span id="salvo" class="msg"></span>
-      <p class="dica">Pasta de dados: <code id="pasta-dados"></code></p>
     </div>
   </section>
 </main>
@@ -197,17 +300,21 @@
   <div class="clipe">
     <video controls preload="metadata"></video>
     <div class="info">
-      <div class="nota"></div>
+      <div class="cabeca-clipe"><span class="nota-selo"></span><span class="meta tempo"></span></div>
       <h4 class="titulo"></h4>
       <p class="motivo"></p>
+      <div class="selos"></div>
       <details class="ajustar"><summary>Ajustar e refazer</summary>
-        <label>Título <input class="aj-titulo"></label>
-        <label>Gancho <input class="aj-gancho"></label>
-        <div class="linha"><label>Início <input class="aj-inicio"></label><label>Fim <input class="aj-fim"></label></div>
+        <div class="grade-2">
+          <label>Título <input class="aj-titulo"></label>
+          <label>Gancho no topo <input class="aj-gancho"></label>
+          <label>Início <input class="aj-inicio hora"></label>
+          <label>Fim <input class="aj-fim hora"></label>
+        </div>
         <button class="refazer">Refazer este clipe</button>
       </details>
       <div class="acoes">
-        <a class="baixar botao" download>Baixar</a>
+        <a class="baixar botao primario" download>Baixar .mp4</a>
         <a class="txt botao" target="_blank">Texto do post</a>
         <button class="apagar perigo">Apagar</button>
       </div>

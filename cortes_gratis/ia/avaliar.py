@@ -187,6 +187,8 @@ def _aplicar(c: dict, a: dict, linhas: list[dict], cc: dict) -> None:
     c["nota_ia"] = nota
     c["nota"], porque = _limitar(nota, a)
     c["o_que_acontece"] = str(a.get("o_que_acontece", "")).strip()[:200]
+    # A lista de verificação vai pra interface (selos no clipe).
+    c["checagem"] = {k: _sim(a.get(k)) for k in ("se_entende_sozinho", "tem_reacao_forte", "tem_fecho")}
     motivo = str(a.get("motivo", "")).strip()[:200]
     if porque:
         motivo += f" (nota limitada: {', '.join(porque)})"

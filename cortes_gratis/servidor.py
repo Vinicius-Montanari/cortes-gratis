@@ -203,6 +203,25 @@ def ver(pid: str):
     return _projeto(pid).dados
 
 
+@app.get("/api/projetos/{pid}/linha")
+def linha_do_tempo(pid: str, barras: int = 120):
+    """Volume do vídeo resumido em N barras (0 a 1), pra linha do tempo."""
+    p = _projeto(pid)
+    if not (p.pasta / "energia.json").exists():
+        return {"inicio": 0, "fim": 0, "barras": []}
+    e = p.ler("energia.json")
+    db, ini = e.get("db") or [], float(e.get("deslocamento") or 0)
+    if not db:
+        return {"inicio": ini, "fim": ini, "barras": []}
+    n = max(10, min(int(barras), 400, len(db)))
+    passo = len(db) / n
+    picos = [max(db[int(i * passo):max(int((i + 1) * passo), int(i * passo) + 1)]) for i in range(n)]
+    base, topo = sorted(picos)[len(picos) // 10], max(picos)  # ignora o silêncio total
+    esc = (topo - base) or 1.0
+    return {"inicio": ini, "fim": ini + len(db),
+            "barras": [round(max(0.0, min(1.0, (v - base) / esc)), 3) for v in picos]}
+
+
 @app.post("/api/projetos/{pid}/retomar")
 def retomar(pid: str):
     p = _projeto(pid)

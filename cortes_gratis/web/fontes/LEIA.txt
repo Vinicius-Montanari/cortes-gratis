@@ -1,0 +1,9 @@
+Fontes usadas na interface, embutidas pra funcionar sem internet:
+
+- Familjen Grotesk (Familjen STHLM AB) — SIL Open Font License 1.1
+  https://fonts.google.com/specimen/Familjen+Grotesk
+- DM Mono (Colophon Foundry) — SIL Open Font License 1.1
+  https://fonts.google.com/specimen/DM+Mono
+
+Só o subconjunto "latin" (cobre português, inglês e espanhol).
+Licença: https://openfontlicense.org

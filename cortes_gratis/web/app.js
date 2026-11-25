@@ -46,15 +46,45 @@ let estado = null;
 let projetoAtual = null;
 let timerProjeto = null;
 
+// ------------------------------------------------------------------ tema
+$("#trocar-tema").onclick = () => {
+  const novo = document.documentElement.dataset.tema === "claro" ? "escuro" : "claro";
+  document.documentElement.dataset.tema = novo;
+  localStorage.setItem("tema", novo);
+};
+
 // ------------------------------------------------------------------ abas
-$$("nav button").forEach((b) =>
+$$("nav.abas button").forEach((b) =>
   b.addEventListener("click", () => abrirAba(b.dataset.aba)));
 
 function abrirAba(nome) {
-  $$("nav button").forEach((b) => b.classList.toggle("ativa", b.dataset.aba === nome));
+  const aba = nome === "projeto" ? "projetos" : nome;
+  $$("nav.abas button").forEach((b) => b.classList.toggle("ativa", b.dataset.aba === aba));
   $$(".aba").forEach((s) => s.classList.toggle("escondido", s.id !== `aba-${nome}`));
+  if (nome !== "projeto") { projetoAtual = null; clearTimeout(timerProjeto); }
+  if (nome === "cortar") carregarRecentes();
   if (nome === "projetos") carregarProjetos();
-  if (nome === "config") carregarEstado().then(preencherConfig);
+  if (nome === "config") { preencherConfig(); carregarEstado().then(preencherConfig); }
+  window.scrollTo(0, 0);
+}
+
+// Etapas do pipeline (mesmos nomes de pipeline.ETAPAS).
+const ETAPAS = [["analise", "Baixar e transcrever"], ["candidatos", "Achar momentos"],
+  ["ia", "IA filtra"], ["visao", "Conferir a imagem"], ["corte", "Cortar em 9:16"]];
+
+function desenharEtapas(ol, d) {
+  const pronto = d.estado === "pronto";
+  const atual = ETAPAS.findIndex(([n]) => n === d.etapa);
+  ol.innerHTML = "";
+  ETAPAS.forEach(([, nome], i) => {
+    const li = document.createElement("li");
+    const feito = pronto || i < atual;
+    li.className = feito ? "feito" : i === atual ? "agora" : "falta";
+    li.innerHTML = `<span class="bola"></span><span></span>`;
+    li.firstChild.textContent = feito ? "✓" : String(i + 1);
+    li.lastChild.textContent = nome;
+    ol.appendChild(li);
+  });
 }
 
 // ------------------------------------------------------------------ estado geral
@@ -62,12 +92,20 @@ async function carregarEstado() {
   estado = await api("/api/estado");
   $("#versao").textContent = "v" + estado.versao;
   const g = estado.gpu || {};
+  const nomePlaca = (g.nome || "NVIDIA").replace(/^NVIDIA\s+(GeForce\s+)?/i, "");
   const chips = [
-    [g.cuda ? `Placa: ${g.nome || "NVIDIA"}` : "Sem placa NVIDIA (vai pelo processador)", g.cuda],
-    [estado.ffmpeg ? (estado.nvenc ? "ffmpeg + NVENC" : "ffmpeg") : "ffmpeg: baixa no 1º uso", estado.ffmpeg],
-    [estado.ollama.rodando ? "IA local ligada" : estado.ollama.instalado ? "IA local desligada" : "IA local não instalada", estado.ollama.rodando],
+    [g.cuda ? nomePlaca : "sem placa NVIDIA", g.cuda, g.cuda ? `Placa de vídeo: ${g.nome}` : "A transcrição vai pelo processador (mais lento)"],
+    [estado.ffmpeg ? (estado.nvenc ? "NVENC" : "ffmpeg") : "ffmpeg no 1º uso", estado.ffmpeg, "Programa que corta o vídeo"],
+    ["IA local", estado.ollama.rodando, estado.ollama.rodando ? "IA local ligada" : estado.ollama.instalado ? "IA local desligada" : "IA local não instalada"],
   ];
-  $("#chips").innerHTML = chips.map(([t, ok]) => `<span class="chip ${ok ? "ok" : ""}">${t}</span>`).join("");
+  $("#chips").innerHTML = "";
+  for (const [t, ok, dica] of chips) {
+    const s = document.createElement("span");
+    s.className = "chip" + (ok ? " ok" : "");
+    s.textContent = t;
+    s.title = dica;
+    $("#chips").appendChild(s);
+  }
 
   const c = estado.config;
   const temNuvem = ["groq", "gemini"].some((n) => c.ia[n].ativo && c.ia[n].chave);
@@ -110,14 +148,64 @@ $("#form-novo").addEventListener("submit", async (e) => {
 
 // ------------------------------------------------------------------ projeto
 function abrirProjeto(id) {
+  abrirAba("projeto");
   projetoAtual = id;
-  abrirAba("cortar");
-  $("#projeto").classList.remove("escondido");
+  assinaturaClipes = "";
+  linhaDoTempo = null;
   $("#p-clipes").innerHTML = "";
   $("#p-descartados").innerHTML = "";
-  clearTimeout(timerProjeto);
+  $("#p-linha").classList.add("escondido");
   atualizarProjeto();
-  $("#projeto").scrollIntoView({ behavior: "smooth" });
+}
+
+$("#p-voltar").onclick = () => abrirAba("projetos");
+
+function metaDoProjeto(d) {
+  const f = d.fonte || {};
+  const partes = [];
+  if (f.trecho && (f.trecho[0] || f.trecho[1])) partes.push(`${hms(f.trecho[0] || 0)} → ${hms(f.trecho[1] || f.duracao || 0)}`);
+  if (f.plataforma) partes.push(String(f.plataforma).toLowerCase());
+  const cands = d.candidatos || [];
+  if (cands.length) partes.push(`${cands.length} trechos`);
+  if ((d.clipes || []).length) partes.push(`${d.clipes.length} ${d.clipes.length === 1 ? "clipe" : "clipes"}`);
+  const quem = cands.find((c) => c.ia)?.ia;
+  if (quem) partes.push(quem.replace(/\s*\(.*?\)/g, "").replace(/ ×\d+/g, ""));
+  return partes.join(" · ");
+}
+
+// ------------------------------------------------------------------ linha do tempo
+let linhaDoTempo = null;
+
+async function desenharLinha(d) {
+  const caixa = $("#p-linha");
+  if (!d.candidatos?.length) { caixa.classList.add("escondido"); return; }
+  if (!linhaDoTempo) {
+    try { linhaDoTempo = await api(`/api/projetos/${projetoAtual}/linha?barras=110`); } catch { return; }
+  }
+  const { inicio, fim, barras } = linhaDoTempo;
+  if (!barras.length || fim <= inicio) return;
+  const dur = fim - inicio, passo = dur / barras.length;
+  const tipo = (t0, t1) => {
+    let r = "";
+    for (const c of d.candidatos) {
+      if (c.fim < t0 || c.inicio > t1) continue;
+      if (c.escolhido) return "aprovado";
+      r = "cand";
+    }
+    return r;
+  };
+  const ondas = $("#p-ondas");
+  ondas.innerHTML = "";
+  barras.forEach((v, i) => {
+    const s = document.createElement("span");
+    const t0 = inicio + i * passo;
+    s.className = tipo(t0, t0 + passo);
+    s.style.height = `${Math.round(6 + v * 58)}px`;
+    s.title = hms(t0);
+    ondas.appendChild(s);
+  });
+  $("#p-marcas").innerHTML = [0, 1, 2, 3, 4].map((k) => `<span>${hms(inicio + (dur * k) / 4)}</span>`).join("");
+  caixa.classList.remove("escondido");
 }
 
 let assinaturaClipes = "";
@@ -128,8 +216,13 @@ async function atualizarProjeto() {
   let d;
   try { d = await api(`/api/projetos/${projetoAtual}`); } catch { return; }
   $("#p-titulo").textContent = d.titulo || d.entrada;
+  $("#p-meta").textContent = metaDoProjeto(d);
+  const pronto = d.estado === "pronto";
+  desenharEtapas($("#p-etapas"), d);
+  $("#p-etapas").classList.toggle("escondido", pronto);
+  $("#p-barra").parentElement.classList.toggle("escondido", pronto);
   $("#p-barra").style.width = `${Math.round((d.progresso || 0) * 100)}%`;
-  $("#p-msg").textContent = d.estado === "pronto" ? "Pronto. Assista cada clipe antes de postar." : d.mensagem || "";
+  $("#p-msg").textContent = pronto ? "Pronto. Assista cada clipe antes de postar." : d.mensagem || "";
   $("#p-log").textContent = (d.log || []).join("\n");
   const erro = $("#p-erro");
   erro.classList.toggle("escondido", d.estado !== "erro");
@@ -141,6 +234,7 @@ async function atualizarProjeto() {
   if (assinatura !== assinaturaClipes) {
     assinaturaClipes = assinatura;
     desenharClipes(d);
+    desenharLinha(d);
   }
   if (d.estado === "rodando" || d.estado === "na fila") {
     timerProjeto = setTimeout(atualizarProjeto, 1500);
@@ -162,7 +256,18 @@ function desenharClipes(d) {
     const v = $("video", el);
     v.src = base + encodeURIComponent(cl.video) + `?v=${encodeURIComponent(c.inicio)}-${encodeURIComponent(c.fim)}`;
     v.poster = base + encodeURIComponent(cl.capa);
-    $(".nota", el).textContent = `Nota ${c.nota ?? "?"} · ${hms(c.inicio)}–${hms(c.fim)} (${Math.round(c.fim - c.inicio)} s)`;
+    $(".nota-selo", el).textContent = Number(c.nota ?? 0).toFixed(1);
+    $(".tempo", el).textContent = `#${cl.id} · ${hms(c.inicio)} → ${hms(c.fim)} · ${Math.round(c.fim - c.inicio)} s`;
+    const ch = c.checagem || {};
+    const selos = [[ch.se_entende_sozinho, "entende sozinho"], [ch.tem_reacao_forte, "reação forte"], [ch.tem_fecho, "tem fecho"],
+      [c.visao ? c.visao.combina !== false : undefined, "imagem confere"]];
+    for (const [v, nome] of selos) {
+      if (v === undefined || v === null) continue;
+      const s = document.createElement("span");
+      s.className = v ? "" : "nao";
+      s.textContent = (v ? "✓ " : "✗ ") + nome;
+      $(".selos", el).appendChild(s);
+    }
     $(".titulo", el).textContent = c.titulo || `Clipe ${cl.id}`;
     $(".motivo", el).textContent = c.motivo || "";
     $(".aj-titulo", el).value = c.titulo || "";
@@ -185,21 +290,26 @@ function desenharClipes(d) {
     };
     grade.appendChild(el);
   }
-  $("#p-clipes-titulo").classList.toggle("escondido", !(d.clipes || []).length);
 
   const feitos = new Set((d.clipes || []).map((c) => c.id));
   const desc = (d.candidatos || []).filter((c) => "nota" in c && !feitos.has(c.id))
     .sort((a, b) => b.nota - a.nota);
-  $("#p-desc-titulo").classList.toggle("escondido", !desc.length);
+  $("#p-desc-box").classList.toggle("escondido", !desc.length);
+  const op = d.opcoes || {}, cc = estado?.config?.corte || {};
+  const minima = Number(op.nota_minima ?? cc.nota_minima ?? 6), extra = Number(cc.ajuste_local ?? 1);
+  $("#p-regua").textContent = desc.some((c) => c.avaliado_por === "ollama")
+    ? `nota mínima ${(minima + extra).toFixed(1)} (${minima} + ${extra} da IA local)` : `nota mínima ${minima}`;
   const lista = $("#p-descartados");
   lista.innerHTML = "";
   for (const c of desc) {
     const linha = document.createElement("div");
     linha.className = "descartado";
-    linha.innerHTML = `<span class="nota"></span><span class="tempo"></span><span class="motivo"></span><button>Cortar mesmo assim</button>`;
-    $(".nota", linha).textContent = c.nota;
-    $(".tempo", linha).textContent = `${hms(c.inicio)}–${hms(c.fim)}`;
-    $(".motivo", linha).textContent = `${c.titulo || ""} — ${c.motivo || ""}`;
+    linha.innerHTML = `<span class="nota-contorno"></span><span class="texto"><b></b><small></small></span><span class="tempo"></span><button>Cortar assim mesmo</button>`;
+    $(".nota-contorno", linha).textContent = Number(c.nota ?? 0).toFixed(1);
+    $("b", linha).textContent = c.titulo || `Trecho ${c.id}`;
+    $("small", linha).textContent = c.motivo || "";
+    $("small", linha).title = c.motivo || "";
+    $(".tempo", linha).textContent = hms(c.inicio);
     $("button", linha).onclick = () => cortarClipes([c.id]);
     lista.appendChild(linha);
   }
@@ -223,14 +333,14 @@ $("#p-retomar").onclick = async () => {
 async function carregarProjetos() {
   const lista = await api("/api/projetos");
   const box = $("#lista-projetos");
-  box.innerHTML = lista.length ? "" : `<p class="dica">Nenhum projeto ainda.</p>`;
+  box.innerHTML = lista.length ? "" : `<p class="dica">Nenhum projeto ainda. Cole um link na aba Cortar.</p>`;
   for (const p of lista) {
-    const el = document.createElement("div");
+    const el = document.createElement("button");
     el.className = "projeto-item";
-    el.innerHTML = `<div><b></b><br><small></small></div><small></small>`;
+    el.innerHTML = `<span><b></b><br><small></small></span><small class="qtd"></small>`;
     $("b", el).textContent = p.titulo;
-    $$("small", el)[0].textContent = p.criado?.replace("T", " ") || "";
-    $$("small", el)[1].textContent = `${p.clipes} clipes · ${p.estado}`;
+    $$("small", el)[0].textContent = (p.criado?.replace("T", " ") || "") + (p.estado !== "pronto" ? ` · ${p.estado}` : "");
+    $$("small", el)[1].textContent = `${p.clipes} ${p.clipes === 1 ? "clipe" : "clipes"}`;
     el.onclick = () => abrirProjeto(p.id);
     box.appendChild(el);
   }
@@ -276,7 +386,8 @@ function desenharIAs(ordem) {
     const link = LINKS_CHAVE[nome];
     el.innerHTML = `
       <div class="ia-topo">
-        <label class="check"><input type="checkbox" class="ativo"> <b>${i + 1}. ${NOMES_IA[nome]}</b></label>
+        <span class="num">${i + 1}</span>
+        <label class="check"><input type="checkbox" class="ativo"> <b>${NOMES_IA[nome]}</b></label>
         ${link ? `<a href="${link[0]}" target="_blank" rel="noopener">${link[1]} ↗</a>` : ""}
         <span class="ordem"><button class="subir" title="Subir">↑</button><button class="descer" title="Descer">↓</button></span>
       </div>
@@ -369,8 +480,8 @@ function atualizarOllama() {
   }
   const baixados = o.modelos.length ? o.modelos.join(", ") : "nenhum";
   $("#ollama-status").innerHTML =
-    `<p>${o.instalado ? "✓ Instalado" : "Não instalado"} · ${o.rodando ? '<span class="ok">ligado</span>' : "desligado"}` +
-    (o.rodando ? ` · modelos baixados: ${baixados}` : "") + "</p>";
+    `<p class="meta" style="font-size:13px;margin:0 0 14px">${o.instalado ? "instalada" : "não instalada"} · ${o.rodando ? '<span class="ok">ligada</span>' : "desligada"}` +
+    (o.rodando ? ` · modelos: ${baixados}` : "") + "</p>";
   $("#ollama-ligar").disabled = !o.instalado || o.rodando;
   $("#ollama-desligar").disabled = !o.rodando;
   $("#ollama-remover").disabled = !o.instalado;
@@ -412,4 +523,38 @@ for (const [id, acao] of [["#ollama-ligar", "ligar"], ["#ollama-desligar", "desl
   };
 }
 
+// ------------------------------------------------------------------ painel lateral
+let timerLado = null;
+async function carregarRecentes() {
+  clearTimeout(timerLado);
+  let lista;
+  try { lista = await api("/api/projetos"); } catch { return; }
+  const box = $("#lista-recentes");
+  box.innerHTML = lista.length ? "" : `<p class="dica">Os vídeos que você cortar aparecem aqui.</p>`;
+  for (const p of lista.slice(0, 5)) {
+    const a = document.createElement("a");
+    a.href = "#";
+    a.innerHTML = "<span></span><span></span>";
+    a.firstChild.textContent = p.titulo;
+    a.lastChild.textContent = p.estado === "pronto" ? `${p.clipes} ${p.clipes === 1 ? "clipe" : "clipes"}` : p.estado;
+    a.onclick = (e) => { e.preventDefault(); abrirProjeto(p.id); };
+    box.appendChild(a);
+  }
+  const ativo = lista.find((p) => p.estado === "rodando" || p.estado === "na fila");
+  $("#lado-andamento").classList.toggle("escondido", !ativo);
+  if (!ativo) return;
+  try {
+    const d = await api(`/api/projetos/${ativo.id}`);
+    $("#lado-titulo").textContent = d.titulo || d.entrada;
+    $("#lado-meta").textContent = metaDoProjeto(d) || d.entrada;
+    desenharEtapas($("#lado-etapas"), d);
+    $("#lado-barra").style.width = `${Math.round((d.progresso || 0) * 100)}%`;
+    $("#lado-log").textContent = (d.log || []).slice(-2).join("\n") || d.mensagem || "";
+    $("#lado-log").style.whiteSpace = "pre-line";
+    $("#lado-ver").onclick = (e) => { e.preventDefault(); abrirProjeto(ativo.id); };
+  } catch { /* tenta de novo na próxima volta */ }
+  if (!$("#aba-cortar").classList.contains("escondido")) timerLado = setTimeout(carregarRecentes, 2000);
+}
+
 carregarEstado();
+carregarRecentes();
