@@ -104,6 +104,36 @@ def baixar_audio(link: str, pasta: Path, ini: float | None, fim: float | None,
     return arqs[-1]
 
 
+FORMATO_AUDIO = "bestaudio/worst[acodec!=none]/worst"
+
+
+def baixar_trecho_wav(link: str, wav: Path, ini: float, fim: float, progresso: Progresso) -> None:
+    """Lê só o áudio do trecho direto do servidor e grava o WAV 16 kHz mono.
+
+    Não usa o download por trecho do yt-dlp: ele pula com -ss antes do -i e,
+    no HLS (Kick, Twitch), às vezes começa até ~12 s antes do pedido. Aí toda a
+    transcrição fica deslocada e a legenda sai atrasada."""
+    import subprocess
+    import time
+    from . import corte
+    url, cab = corte._fontes_link_cache(link, FORMATO_AUDIO)[0]
+    dur = max(1.0, fim - ini)
+    ent, exato = corte.entrada_link(url, cab, ini, dur)
+    args = [ferramentas.caminho_ffmpeg() or "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+            "-copyts", *ent, "-ss", f"{exato:.3f}", "-t", f"{dur:.3f}",
+            "-vn", "-ac", "1", "-ar", str(TAXA), "-c:a", "pcm_s16le", str(wav)]
+    proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                            creationflags=ferramentas.SEM_JANELA)
+    total = dur * TAXA * 2
+    while proc.poll() is None:
+        feito = wav.stat().st_size if wav.exists() else 0
+        progresso(min(feito / total, 1.0), f"Baixando o áudio: {feito / total:.0%}")
+        time.sleep(1)
+    erro = proc.stderr.read().decode("utf-8", "replace") if proc.stderr else ""
+    if proc.returncode != 0 or not wav.exists() or wav.stat().st_size < TAXA * 2:
+        raise RuntimeError("Não deu pra baixar o áudio do trecho. " + erro[-500:])
+
+
 def para_wav(origem: Path, wav: Path, ini: float | None = None, fim: float | None = None) -> None:
     """Converte pra WAV 16 kHz mono, que é o que o Whisper usa."""
     args = [ferramentas.caminho_ffmpeg() or "ffmpeg", "-y", "-hide_banner", "-loglevel", "error"]
@@ -224,10 +254,17 @@ def analisar(entrada: str, pasta: Path, cfg: dict, idioma: str | None,
     if eh_link(entrada):
         progresso(0.0, "Lendo informações do link...")
         fonte = info_link(entrada)
-        original = baixar_audio(entrada, pasta, ini, fim, progresso)
-        progresso(1.0, "Convertendo o áudio...")
-        para_wav(original, wav)  # o yt-dlp já cortou o trecho
-        original.unlink(missing_ok=True)
+        if ini is not None or fim is not None:
+            # Trecho: lê direto com pulo exato (ver corte.entrada_link).
+            fim_real = fim if fim is not None else (fonte["duracao"] or 0) or None
+            if fim_real is None:
+                raise RuntimeError("Não deu pra saber a duração do vídeo. Preencha o campo 'Até'.")
+            baixar_trecho_wav(entrada, wav, ini or 0.0, fim_real, progresso)
+        else:
+            original = baixar_audio(entrada, pasta, None, None, progresso)
+            progresso(1.0, "Convertendo o áudio...")
+            para_wav(original, wav)
+            original.unlink(missing_ok=True)
     else:
         arq = Path(entrada.strip().strip('"')).expanduser()
         if not arq.exists():

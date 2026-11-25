@@ -255,3 +255,15 @@ def test_marca_desligada_ou_vazia_nao_entra():
     assert corte.marca_ativa(dict(config.PADRAO["marca"])) is None
     assert corte.marca_ativa(dict(config.PADRAO["marca"], ativo=True)) is None
     assert corte.filtro_video("centro").endswith("[base]ass=legenda.ass[v]")
+
+
+def test_corte_de_link_usa_relogio_original(monkeypatch):
+    """Link: pula largo antes do -i e corta exato no filtro (HLS da Kick erra o -ss)."""
+    from cortes_gratis import corte
+    monkeypatch.setattr(corte, "inicio_do_fluxo", lambda url, cab: 64.171)
+    args, exato = corte.entrada_link("https://x/v.m3u8", {}, 11344.0, 30.0)
+    assert args[args.index("-ss") + 1] == "11314.000" and abs(exato - 11408.171) < 1e-6
+    f = corte.filtro_video("desfocado", "", exato)
+    assert f.startswith("[0:v]trim=start=11408.171,setpts=PTS-STARTPTS,split=2[srca][srcb];")
+    assert "[0:v]" not in f.split(";", 1)[1]
+    assert corte.filtro_video("centro", "", exato).startswith("[0:v]trim=start=11408.171,setpts=PTS-STARTPTS[src];")

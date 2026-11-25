@@ -155,20 +155,29 @@ def filtro_logo(indice: int, marca: dict, dur: float) -> str:
             f"[base][logo]overlay={x}-w/2:{y}-h/2:enable='{quando}'[comlogo];")
 
 
-def filtro_video(layout: str, logo: str = "") -> str:
+def filtro_video(layout: str, logo: str = "", corte: float | None = None) -> str:
     """Monta o filtro do ffmpeg para cada layout. Saída sempre 1080x1920.
-    `logo` é o pedaço de filtro_logo (ou vazio, sem logo)."""
-    fundo = ("[0:v]scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
+    `logo` é o pedaço de filtro_logo (ou vazio, sem logo). `corte` é onde o
+    clipe começa no relógio original do vídeo (link lido com -copyts)."""
+    pre, a, b = "", "[0:v]", "[0:v]"
+    if corte is not None:
+        pre = f"[0:v]trim=start={corte:.3f},setpts=PTS-STARTPTS"
+        if layout == "centro":
+            pre, a = pre + "[src];", "[src]"
+        else:
+            pre, a, b = pre + ",split=2[srca][srcb];", "[srca]", "[srcb]"
+    fundo = (f"{a}scale=270:480:force_original_aspect_ratio=increase,crop=270:480,"
              "boxblur=20:3,eq=brightness=-0.12,scale=1080:1920,setsar=1[fundo];")
     if layout == "centro":
-        base = ("[0:v]scale=1080:1920:force_original_aspect_ratio=increase,"
+        base = (f"{a}scale=1080:1920:force_original_aspect_ratio=increase,"
                 "crop=1080:1920,setsar=1[base];")
     else:
         if layout == "quadrado":
-            frente = ("[0:v]crop='min(iw,ih)':'min(iw,ih)',scale=1080:1080,setsar=1[frente];")
+            frente = f"{b}crop='min(iw,ih)':'min(iw,ih)',scale=1080:1080,setsar=1[frente];"
         else:  # desfocado
-            frente = "[0:v]scale=1080:-2,setsar=1[frente];"
+            frente = f"{b}scale=1080:-2,setsar=1[frente];"
         base = fundo + frente + "[fundo][frente]overlay=(W-w)/2:(H-h)/2[base];"
+    base = pre + base
     if logo:
         return base + logo + "[comlogo]ass=legenda.ass[v]"
     return base + "[base]ass=legenda.ass[v]"
@@ -197,6 +206,51 @@ def _fontes_link_cache(link: str, formato: str) -> list[tuple[str, dict]]:
     return r
 
 
+def _cab(cab: dict) -> str:
+    return "".join(f"{k}: {v}\r\n" for k, v in cab.items())
+
+
+_cache_inicio: dict[str, float] = {}
+
+
+def inicio_do_fluxo(url: str, cab: dict) -> float:
+    """Relógio do primeiro quadro do vídeo (start_time). No HLS da Kick é ~64 s, não 0."""
+    if url not in _cache_inicio:
+        args = [ferramentas.caminho_ffprobe() or "ffprobe", "-v", "error"]
+        if cab:
+            args += ["-headers", _cab(cab)]
+        args += ["-show_entries", "format=start_time", "-of", "json", url]
+        try:
+            r = subprocess.run(args, capture_output=True, text=True, timeout=90,
+                               creationflags=ferramentas.SEM_JANELA)
+            _cache_inicio[url] = float(json.loads(r.stdout)["format"].get("start_time") or 0)
+        except (subprocess.SubprocessError, ValueError, KeyError, TypeError):
+            _cache_inicio[url] = 0.0
+    return _cache_inicio[url]
+
+
+FOLGA_PULO = 30.0  # maior que um pedaço de HLS (Kick: ~12,5 s; Twitch: ~10 s)
+
+
+def entrada_link(url: str, cab: dict, ini: float, dur: float) -> tuple[list[str], float]:
+    """Argumentos de entrada pra ler `dur` segundos de um link a partir de `ini`.
+
+    O -ss antes do -i é rápido, mas no HLS (Kick, Twitch) às vezes para no
+    começo do pedaço de ~12 s em vez do segundo pedido, e o vídeo (ou a
+    transcrição) fica adiantado até 12 s. Então pula largo, 30 s antes, e o
+    comando inteiro roda com -copyts (relógio original do vídeo); o corte
+    exato é feito depois, pelo tempo de verdade. Devolve os argumentos e esse
+    tempo absoluto onde começar."""
+    largo = max(0.0, ini - FOLGA_PULO)
+    args: list[str] = []
+    if cab:
+        args += ["-headers", _cab(cab)]
+    if url.startswith("http") and ".m3u8" not in url:
+        args += ["-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5"]
+    args += ["-ss", f"{largo:.3f}", "-t", f"{ini - largo + dur + 5:.3f}", "-i", url]
+    return args, ini + inicio_do_fluxo(url, cab)
+
+
 def quadros(fonte: dict, ini: float, fim: float, n: int = 4, largura: int = 512) -> list[bytes]:
     """Tira `n` quadros espalhados pelo trecho (JPEG), pra IA que enxerga conferir.
     Por link, lê uma versão pequena (até 480p): é só pra olhar, não pra postar."""
@@ -210,9 +264,12 @@ def quadros(fonte: dict, ini: float, fim: float, n: int = 4, largura: int = 512)
     for k in range(n):
         t = ini + (fim - ini) * (k + 0.5) / n
         args = [ff, "-loglevel", "error"]
-        if cab:
-            args += ["-headers", "".join(f"{a}: {b}\r\n" for a, b in cab.items())]
-        args += ["-ss", f"{t:.2f}", "-i", entrada, "-frames:v", "1",
+        if fonte.get("tipo") != "arquivo":
+            ent, exato = entrada_link(entrada, cab, t, 1.0)
+            args += ["-copyts", *ent, "-ss", f"{exato:.3f}"]
+        else:
+            args += ["-ss", f"{t:.2f}", "-i", entrada]
+        args += ["-frames:v", "1",
                  "-vf", f"scale={largura}:-2", "-q:v", "4", "-f", "image2", "-c:v", "mjpeg", "-"]
         r = subprocess.run(args, capture_output=True, creationflags=ferramentas.SEM_JANELA)
         if r.returncode == 0 and r.stdout:
@@ -220,17 +277,18 @@ def quadros(fonte: dict, ini: float, fim: float, n: int = 4, largura: int = 512)
     return saida
 
 
-def _entradas(fonte: dict, ini: float, dur: float) -> list[str]:
+def _entradas(fonte: dict, ini: float, dur: float) -> tuple[list[str], list[float | None]]:
+    """Argumentos de entrada e, por entrada, onde cortar no relógio original
+    (None = arquivo do PC, em que o -ss antes do -i já é exato)."""
     if fonte.get("tipo") == "arquivo":
-        return ["-ss", f"{ini:.3f}", "-t", f"{dur:.3f}", "-i", fonte["arquivo"]]
-    args: list[str] = []
+        return ["-ss", f"{ini:.3f}", "-t", f"{dur:.3f}", "-i", fonte["arquivo"]], [None]
+    args: list[str] = ["-copyts"]
+    cortes: list[float | None] = []
     for url, cab in _fontes_ffmpeg_link(fonte["link"]):
-        if cab:
-            args += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in cab.items())]
-        args += ["-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5"] \
-            if url.startswith("http") and ".m3u8" not in url else []
-        args += ["-ss", f"{ini:.3f}", "-t", f"{dur:.3f}", "-i", url]
-    return args
+        ent, exato = entrada_link(url, cab, ini, dur)
+        args += ent
+        cortes.append(exato)
+    return args, cortes
 
 
 def renderizar(fonte: dict, clipe: dict, palavras: list[dict], pasta_saida: Path,
@@ -250,9 +308,14 @@ def renderizar(fonte: dict, clipe: dict, palavras: list[dict], pasta_saida: Path
         montar_ass(palavras, ini, fim, gancho, credito,
                    opcoes.get("legenda_maiuscula", True), layout, marca), encoding="utf-8")
 
-    entradas = _entradas(fonte, ini, dur)
+    entradas, cortes = _entradas(fonte, ini, dur)
     n_entradas = entradas.count("-i")
     audio = f"{n_entradas - 1}:a:0" if n_entradas > 1 else "0:a:0?"
+    volume = "loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000"
+    filtro_audio = ""
+    if cortes[-1] is not None:  # link: corta o áudio no mesmo relógio do vídeo
+        filtro_audio = (f";[{audio.rstrip('?')}]atrim=start={cortes[-1]:.3f},"
+                        f"asetpts=PTS-STARTPTS,{volume}[a]")
     pedaco_logo = ""
     if marca and marca["caminho_logo"]:
         entradas += ["-i", str(marca["caminho_logo"])]  # imagem parada: o overlay repete
@@ -265,10 +328,10 @@ def renderizar(fonte: dict, clipe: dict, palavras: list[dict], pasta_saida: Path
     mp4 = pasta_saida / f"{nome}.mp4"
     args = [ferramentas.caminho_ffmpeg() or "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
             *entradas,
-            "-filter_complex", filtro_video(layout, pedaco_logo),
-            "-map", "[v]", "-map", audio,
+            "-filter_complex", filtro_video(layout, pedaco_logo, cortes[0]) + filtro_audio,
+            "-map", "[v]",
+            *(["-map", "[a]"] if filtro_audio else ["-map", audio, "-af", volume]),
             *cod, "-pix_fmt", "yuv420p", "-r", "30",
-            "-af", "loudnorm=I=-14:TP=-1.5:LRA=11,aresample=48000",
             "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
             "-t", f"{dur:.3f}", str(mp4.resolve())]
     progresso(0.0, f"Montando o clipe {numero}: {clipe.get('titulo', '')}")
