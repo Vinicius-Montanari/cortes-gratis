@@ -68,6 +68,31 @@ def grupos(palavras: list[dict], max_palavras: int = 3, max_chars: int = 18) -> 
     return saida
 
 
+def _t_srt(seg: float) -> str:
+    ms = int(round(max(0.0, seg) * 1000))
+    h, ms = divmod(ms, 3_600_000)
+    m, ms = divmod(ms, 60_000)
+    s, ms = divmod(ms, 1000)
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def montar_srt(palavras: list[dict], ini: float, fim: float) -> str:
+    """Legenda do clipe em .srt (os mesmos blocos curtos do vídeo), pra quem
+    quiser editar em outro programa ou postar com a legenda da rede social."""
+    dentro = [w for w in palavras if w["f"] > ini and w["i"] < fim]
+    blocos = grupos(dentro)
+    linhas = []
+    for b, bloco in enumerate(blocos):
+        prox = blocos[b + 1][0]["i"] if b + 1 < len(blocos) else fim
+        a = max(0.0, bloco[0]["i"] - ini)
+        z = min(prox, bloco[-1]["f"] + 0.4, fim) - ini
+        if z <= a:
+            continue
+        linhas += [str(len(linhas) // 4 + 1), f"{_t_srt(a)} --> {_t_srt(z)}",
+                   " ".join(w["p"] for w in bloco), ""]
+    return "\n".join(linhas)
+
+
 def janelas_marca(dur: float, quando: str) -> list[tuple[float, float]]:
     """Quando a marca aparece: o clipe todo, ou só 4 s no começo e no fim."""
     if quando != "inicio_fim" or dur <= 10:
@@ -90,7 +115,7 @@ def marca_ativa(marca: dict | None) -> dict | None:
 
 def montar_ass(palavras: list[dict], ini: float, fim: float, gancho: str, credito: str,
                maiusculas: bool, layout: str, marca: dict | None = None,
-               gancho_y: int | None = None) -> str:
+               gancho_y: int | None = None, legenda: bool = True) -> str:
     """Gera o arquivo de legenda. `palavras` vêm com o tempo do vídeo original."""
     dur = fim - ini
     margem_legenda = 470 if layout != "centro" else 380
@@ -126,7 +151,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         for a, z in janelas_marca(dur, marca.get("quando", "sempre")):
             ev.append(f"Dialogue: 2,{_t(a)},{_t(z)},Credito,,0,0,0,,{tags}{_esc(marca['texto'])}")
 
-    dentro = [w for w in palavras if w["f"] > ini and w["i"] < fim]
+    dentro = [w for w in palavras if w["f"] > ini and w["i"] < fim] if legenda else []
     blocos = grupos(dentro)
     for b, bloco in enumerate(blocos):
         prox = blocos[b + 1][0]["i"] if b + 1 < len(blocos) else fim
@@ -396,7 +421,8 @@ def renderizar(fonte: dict, clipe: dict, palavras: list[dict], pasta_saida: Path
     (trab / "legenda.ass").write_text(
         montar_ass(palavras, ini, fim, gancho, credito,
                    opcoes.get("legenda_maiuscula", True), layout, marca,
-                   gancho_y=geo["divisa"] if geo else None), encoding="utf-8")
+                   gancho_y=geo["divisa"] if geo else None,
+                   legenda=opcoes.get("mostrar_legenda", True)), encoding="utf-8")
 
     entradas, cortes = _entradas(fonte, ini, dur)
     n_entradas = entradas.count("-i")
@@ -431,10 +457,11 @@ def renderizar(fonte: dict, clipe: dict, palavras: list[dict], pasta_saida: Path
     ferramentas.rodar([ferramentas.caminho_ffmpeg() or "ffmpeg", "-y", "-loglevel", "error",
                        "-ss", f"{min(dur / 2, 8):.2f}", "-i", str(mp4), "-frames:v", "1",
                        "-vf", "scale=360:-2", "-q:v", "4", str(capa)])
+    (pasta_saida / f"{nome}.srt").write_text(montar_srt(palavras, ini, fim), encoding="utf-8")
     texto = texto_post(fonte, clipe, credito)
     (pasta_saida / f"{nome}.txt").write_text(texto, encoding="utf-8")
     shutil.rmtree(trab, ignore_errors=True)
-    return {"video": mp4.name, "capa": capa.name, "texto": f"{nome}.txt"}
+    return {"video": mp4.name, "capa": capa.name, "texto": f"{nome}.txt", "srt": f"{nome}.srt"}
 
 
 def link_no_tempo(fonte: dict, seg: float) -> str:

@@ -132,6 +132,8 @@
             <b id="nota-valor">6</b>
           </label>
         </div>
+        <label class="check" title="Desligada, o clipe sai sem legenda queimada. O arquivo .srt sai sempre.">
+          <input type="checkbox" id="legenda-corte" checked> Legenda no vídeo</label>
         <p class="dica" style="margin:0">Use só vídeo seu ou de canal que libera clipe. O crédito vai no vídeo e no texto do post.</p>
       </form>
 
@@ -408,6 +410,7 @@
             <label class="check"><input type="checkbox" id="maiuscula"> Legenda em MAIÚSCULAS</label>
             <label class="check"><input type="checkbox" id="mostrar-gancho"> Gancho no topo</label>
             <label class="check"><input type="checkbox" id="mostrar-credito"> Crédito no vídeo</label>
+            <label class="check" title="O arquivo .srt com a legenda sai sempre, mesmo desligado"><input type="checkbox" id="mostrar-legenda"> Legenda no vídeo</label>
           </div>
           <div class="salvar-linha">
             <span id="salvo" class="msg"></span>
@@ -439,6 +442,7 @@
       <div class="acoes">
         <a class="baixar botao primario" download>Baixar .mp4</a>
         <a class="txt botao" target="_blank">Texto do post</a>
+        <a class="srt botao" download title="Legenda em .srt, pra editar em outro programa">Legenda .srt</a>
         <button class="omniclip" title="Abre o OmniClip (editor de vídeo grátis que roda no navegador, sem enviar o vídeo pra lugar nenhum) e mostra o arquivo pra você arrastar pra dentro dele">Editar no OmniClip</button>
         <button class="apagar perigo">Apagar</button>
       </div>

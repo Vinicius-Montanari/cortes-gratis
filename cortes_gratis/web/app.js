@@ -124,6 +124,7 @@ async function carregarEstado() {
   }
 
   const c = estado.config;
+  if (!carregarEstado.feito) { $("#legenda-corte").checked = c.corte.mostrar_legenda !== false; carregarEstado.feito = true; }
   const temNuvem = ["groq", "gemini"].some((n) => c.ia[n].ativo && c.ia[n].chave);
   const temLocal = c.ia.ollama.ativo && estado.ollama.instalado;
   const aviso = $("#aviso-ia");
@@ -151,6 +152,7 @@ $("#form-novo").addEventListener("submit", async (e) => {
       trecho_fim: $("#trecho-fim").value.trim(),
       nota_minima: parseFloat($("#nota-minima").value),
       layout: $("input[name=layout]:checked").value,
+      mostrar_legenda: $("#legenda-corte").checked,
       ...(camAtual && $("input[name=layout]:checked").value === "camera" ? { camera: camAtual.camera } : {}),
       credito: $("#credito").value.trim(),
     };
@@ -294,6 +296,8 @@ function desenharClipes(d) {
     $(".aj-fim", el).value = hms(c.fim);
     $(".baixar", el).href = base + encodeURIComponent(cl.video);
     $(".txt", el).href = base + encodeURIComponent(cl.texto);
+    if (cl.srt) $(".srt", el).href = base + encodeURIComponent(cl.srt);
+    else $(".srt", el).remove();
     const caixa = el.firstElementChild;
     $(".refazer", el).onclick = () => cortarClipes([cl.id], {
       [cl.id]: {
@@ -463,6 +467,7 @@ function preencherConfig() {
   $("#maiuscula").checked = c.corte.legenda_maiuscula;
   $("#mostrar-gancho").checked = c.corte.mostrar_gancho;
   $("#mostrar-credito").checked = c.corte.mostrar_credito;
+  $("#mostrar-legenda").checked = c.corte.mostrar_legenda !== false;
   $("#visao-ativo").checked = c.visao.ativo;
   const selV = $("#visao-modelo");
   if (![...selV.options].some((o) => o.value === c.visao.modelo_local)) selV.add(new Option(c.visao.modelo_local, c.visao.modelo_local));
@@ -549,6 +554,7 @@ async function salvarConfig() {
     ajuste_local: +$("#ajuste-local").value,
     legenda_maiuscula: $("#maiuscula").checked, mostrar_gancho: $("#mostrar-gancho").checked,
     mostrar_credito: $("#mostrar-credito").checked,
+    mostrar_legenda: $("#mostrar-legenda").checked,
   });
   Object.assign(c.visao, {
     ativo: $("#visao-ativo").checked,

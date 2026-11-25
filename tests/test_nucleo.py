@@ -297,3 +297,16 @@ def test_recorte_do_jogo_desvia_da_camera():
     # câmera fora do recorte central: fica no centro
     x, y, w, h = corte.recorte_jogo([0, 0, 1, 1], [0.0, 0.0, 0.1, 0.1], asp_tela, 16 / 9)
     assert abs((x + w / 2) - 0.5) < 1e-3
+
+
+def test_legenda_desligada_e_srt():
+    from cortes_gratis import corte
+    pal = [{"i": 10.0, "f": 10.4, "p": "não"}, {"i": 10.4, "f": 11.0, "p": "acreditaram."},
+           {"i": 12.0, "f": 12.5, "p": "caramba"}]
+    com = corte.montar_ass(pal, 9.0, 20.0, "GANCHO", "@x", True, "desfocado")
+    sem = corte.montar_ass(pal, 9.0, 20.0, "GANCHO", "@x", True, "desfocado", legenda=False)
+    assert "ACREDITARAM" in com and "ACREDITARAM" not in sem
+    assert "GANCHO" in sem and "@x" in sem  # gancho e crédito continuam
+    srt = corte.montar_srt(pal, 9.0, 20.0)
+    assert srt.startswith("1\n00:00:01,000 --> 00:00:02,400\nnão acreditaram.")
+    assert "2\n00:00:03,000 --> " in srt

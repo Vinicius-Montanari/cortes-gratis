@@ -88,6 +88,7 @@ PADRAO: dict = {
         "dur_min": 20,
         "dur_max": 60,
         "layout": "desfocado",  # desfocado, quadrado, centro ou camera
+        "mostrar_legenda": True,   # legenda palavra por palavra no vídeo (o .srt sai sempre)
         "legenda_maiuscula": True,
         "mostrar_gancho": True,
         "mostrar_credito": True,

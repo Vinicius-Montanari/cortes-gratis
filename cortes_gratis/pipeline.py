@@ -213,8 +213,9 @@ def cortar(p: Projeto, ids: list[int], cfg: dict | None = None) -> None:
         c = por_id[cid]
         antigo = clipes.get(cid)
         if antigo:  # refazendo: apaga a versão anterior
-            for k in ("video", "capa", "texto"):
-                (saida / antigo[k]).unlink(missing_ok=True)
+            for k in ("video", "capa", "texto", "srt"):
+                if antigo.get(k):
+                    (saida / antigo[k]).unlink(missing_ok=True)
 
         def sub(frac: float, msg: str, n=n) -> None:
             prog((n + frac) / len(ids), msg)
@@ -239,8 +240,9 @@ def remover_clipe(p: Projeto, cid: int) -> None:
     restantes = []
     for cl in p.dados.get("clipes", []):
         if cl["id"] == cid:
-            for k in ("video", "capa", "texto"):
-                (saida / cl[k]).unlink(missing_ok=True)
+            for k in ("video", "capa", "texto", "srt"):
+                if cl.get(k):
+                    (saida / cl[k]).unlink(missing_ok=True)
         else:
             restantes.append(cl)
     p.dados["clipes"] = restantes
